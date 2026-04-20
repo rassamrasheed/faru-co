@@ -180,6 +180,64 @@ const FEATURED = [
 const GST_RATE = 0.16;
 const STORAGE_KEY = 'faru_trip_v2';
 
+const ISLAND_IMAGES = {
+  maafushi:    '/images/local-island.png',
+  hulhumale:   '/images/family.png',
+  thulusdhoo:  '/images/surf.png',
+  fulidhoo:    '/images/local-island.png',
+  dhigurah:    '/images/adventure.png',
+  rasdhoo:     '/images/adventure.png',
+  baa:         '/images/honeymoon.png',
+  'south-ari': '/images/private-resort.png',
+  'north-male':'/images/private-resort.png',
+  lhaviyani:   '/images/honeymoon.png',
+  raa:         '/images/local-island.png',
+  noonu:       '/images/private-resort.png',
+};
+
+const ARTICLES = [
+  {
+    id: 1,
+    category: 'Honeymoon',
+    title: 'The Perfect Maldives Honeymoon: A Complete Guide',
+    excerpt: 'From choosing between overwater bungalows and beach villas to timing your trip for the best weather — everything you need to plan the most romantic escape of your life.',
+    image: '/images/honeymoon.png',
+    date: 'March 2025',
+    readTime: '8 min read',
+    featured: true,
+  },
+  {
+    id: 2,
+    category: 'Insider Tips',
+    title: 'Local Islands vs. Private Resorts: An Honest Breakdown',
+    excerpt: "Budget vs. bliss? It's not that simple. Here's a real, unfiltered look at what each experience delivers — and who each one is really for.",
+    image: '/images/local-island.png',
+    date: 'February 2025',
+    readTime: '6 min read',
+    featured: false,
+  },
+  {
+    id: 3,
+    category: 'Marine Life',
+    title: "Swimming with Whale Sharks: What Nobody Tells You",
+    excerpt: "The briefing says stay 3 meters away. Then a 9-meter shark swims straight at you. Here's what it's actually like — and how to be ready for it.",
+    image: '/images/adventure.png',
+    date: 'January 2025',
+    readTime: '5 min read',
+    featured: false,
+  },
+  {
+    id: 4,
+    category: 'Family Travel',
+    title: "The Maldives With Kids: It's Way Easier Than You Think",
+    excerpt: "Most families write off the Maldives as 'too expensive' or 'too remote.' We've got news: with the right islands and a smart itinerary, it's one of the best family trips on earth.",
+    image: '/images/family.png',
+    date: 'December 2024',
+    readTime: '7 min read',
+    featured: false,
+  },
+];
+
 /* ========== HELPERS ========== */
 
 const isActivityAvailableAt = (activity, islandId) =>
@@ -425,6 +483,257 @@ function FeaturedCard({ pkg, onClick }) {
   );
 }
 
+/* ========== DESTINATIONS PAGE ========== */
+
+function DestinationsPage({ onPlanTrip }) {
+  const [filter, setFilter] = useState('all');
+  const allIslands = [...ISLANDS.local.map(i => ({ ...i, type: 'local' })), ...ISLANDS.resort.map(i => ({ ...i, type: 'resort' }))];
+  const shown = filter === 'all' ? allIslands : allIslands.filter(i => i.type === filter);
+
+  return (
+    <div className="max-w-7xl mx-auto px-6 pt-12 pb-32">
+      {/* Hero */}
+      <div className="mb-12">
+        <div className="inline-flex items-center gap-2 text-xs font-bold tracking-[0.25em] uppercase mb-4 px-3 py-1.5 rounded-full" style={{ background: C.gold + '33', color: '#9a6f00' }}>
+          <MapPin className="w-3 h-3" /> 1,192 islands · your shortlist
+        </div>
+        <h1 className="font-display text-5xl md:text-6xl leading-[1.05] mb-4" style={{ color: C.navy }}>
+          Every island is<br /><span className="font-display-italic" style={{ color: C.teal }}>a different world.</span>
+        </h1>
+        <p className="text-base max-w-lg" style={{ color: C.textMid }}>
+          Volcanic atolls, sandbanks that disappear at high tide, nurse sharks sleeping at jetties. Pick the ones that match how you travel.
+        </p>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex gap-2 mb-8">
+        {[['all', 'All Islands'], ['local', 'Local Islands'], ['resort', 'Private Resorts']].map(([val, label]) => (
+          <button key={val} onClick={() => setFilter(val)}
+            className="px-4 py-2 rounded-full text-sm font-semibold transition-all"
+            style={{ background: filter === val ? C.navy : 'white', color: filter === val ? 'white' : C.textMid, border: `1.5px solid ${filter === val ? C.navy : C.border}` }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Grid */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {shown.map(island => (
+          <div key={island.id} className="rounded-3xl overflow-hidden group" style={{ background: 'white', boxShadow: '0 4px 20px rgba(12,52,65,0.08)' }}>
+            <div className="relative h-48 overflow-hidden">
+              <img src={ISLAND_IMAGES[island.id]} alt={island.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+              <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(12,52,65,0.6) 0%, transparent 60%)' }} />
+              <span className="absolute top-3 left-3 text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-1 rounded-full text-white"
+                style={{ background: island.type === 'local' ? C.teal : C.copper }}>
+                {island.type === 'local' ? 'Local Island' : 'Resort Atoll'}
+              </span>
+              <div className="absolute bottom-3 left-4 right-4">
+                <div className="text-[10px] tracking-[0.2em] uppercase font-semibold text-white/70 mb-0.5">{island.atoll}</div>
+                <div className="font-display text-xl text-white leading-tight">{island.name}</div>
+              </div>
+            </div>
+            <div className="p-5">
+              <p className="text-sm mb-3 leading-relaxed" style={{ color: C.textMid }}>{island.note}</p>
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {island.tags.map(tag => (
+                  <span key={tag} className="text-[10px] tracking-wider uppercase px-2.5 py-1 rounded-full font-medium" style={{ background: C.sand, color: C.textMid }}>{tag}</span>
+                ))}
+              </div>
+              <button onClick={() => onPlanTrip(island.type, island.id)}
+                className="flex items-center gap-2 text-sm font-semibold transition-all hover:gap-3"
+                style={{ color: C.coral }}>
+                Plan a trip here <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ========== JOURNAL PAGE ========== */
+
+function JournalPage() {
+  const [featured, ...rest] = ARTICLES;
+  return (
+    <div className="max-w-7xl mx-auto px-6 pt-12 pb-32">
+      {/* Hero */}
+      <div className="mb-12">
+        <div className="inline-flex items-center gap-2 text-xs font-bold tracking-[0.25em] uppercase mb-4 px-3 py-1.5 rounded-full" style={{ background: C.seafoam, color: C.teal }}>
+          <Sparkles className="w-3 h-3" /> Stories from the water
+        </div>
+        <h1 className="font-display text-5xl md:text-6xl leading-[1.05] mb-4" style={{ color: C.navy }}>
+          The Journal.
+        </h1>
+        <p className="text-base max-w-lg" style={{ color: C.textMid }}>
+          Real stories, honest guides, and the kind of insider knowledge you only get from people who actually live here.
+        </p>
+      </div>
+
+      {/* Featured article */}
+      <div className="rounded-3xl overflow-hidden mb-8 group cursor-pointer" style={{ background: 'white', boxShadow: '0 4px 32px rgba(12,52,65,0.10)' }}>
+        <div className="grid md:grid-cols-2">
+          <div className="relative h-72 md:h-auto overflow-hidden">
+            <img src={featured.image} alt={featured.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+            <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, transparent 50%, rgba(255,255,255,0.05) 100%)' }} />
+          </div>
+          <div className="p-8 md:p-10 flex flex-col justify-center">
+            <span className="inline-block text-xs font-bold tracking-[0.2em] uppercase px-3 py-1 rounded-full mb-4 self-start" style={{ background: C.coral + '22', color: C.coral }}>{featured.category}</span>
+            <h2 className="font-display text-3xl leading-tight mb-4" style={{ color: C.navy }}>{featured.title}</h2>
+            <p className="text-sm leading-relaxed mb-6" style={{ color: C.textMid }}>{featured.excerpt}</p>
+            <div className="flex items-center justify-between">
+              <div className="text-xs" style={{ color: C.textLight }}>{featured.date} · {featured.readTime}</div>
+              <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: C.coral }}>Read more <ArrowRight className="w-4 h-4" /></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Article grid */}
+      <div className="grid md:grid-cols-3 gap-6">
+        {rest.map(article => (
+          <div key={article.id} className="rounded-3xl overflow-hidden group cursor-pointer" style={{ background: 'white', boxShadow: '0 4px 20px rgba(12,52,65,0.08)' }}>
+            <div className="relative h-48 overflow-hidden">
+              <img src={article.image} alt={article.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+              <span className="absolute top-3 left-3 text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-1 rounded-full text-white" style={{ background: C.teal }}>{article.category}</span>
+            </div>
+            <div className="p-5">
+              <h3 className="font-display text-lg leading-tight mb-2" style={{ color: C.navy }}>{article.title}</h3>
+              <p className="text-sm leading-relaxed mb-4" style={{ color: C.textMid }}>{article.excerpt}</p>
+              <div className="flex items-center justify-between">
+                <div className="text-xs" style={{ color: C.textLight }}>{article.date} · {article.readTime}</div>
+                <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: C.coral }}>Read <ArrowRight className="w-3 h-3" /></span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ========== CONTACT PAGE ========== */
+
+function ContactPage() {
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', subject: '', message: '' });
+  const [errors, setErrors] = useState({});
+  const [submitted, setSubmitted] = useState(false);
+
+  const setField = f => e => {
+    setForm(prev => ({ ...prev, [f]: e.target.value }));
+    setErrors(prev => { const n = { ...prev }; delete n[f]; return n; });
+  };
+
+  const validate = () => {
+    const errs = {};
+    if (!form.firstName.trim()) errs.firstName = 'Required';
+    if (!form.lastName.trim()) errs.lastName = 'Required';
+    if (!form.email.trim()) errs.email = 'Required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = 'Enter a valid email';
+    if (!form.subject.trim()) errs.subject = 'Required';
+    if (!form.message.trim()) errs.message = 'Required';
+    return errs;
+  };
+
+  const handleSubmit = e => {
+    e.preventDefault();
+    const errs = validate();
+    if (Object.keys(errs).length) { setErrors(errs); return; }
+    setSubmitted(true);
+  };
+
+  const inputCls = 'w-full px-4 py-2.5 rounded-xl border text-sm';
+  const inputStyle = f => ({ borderColor: errors[f] ? C.error : C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' });
+
+  return (
+    <div className="max-w-7xl mx-auto px-6 pt-12 pb-32">
+      {/* Hero */}
+      <div className="mb-12">
+        <div className="inline-flex items-center gap-2 text-xs font-bold tracking-[0.25em] uppercase mb-4 px-3 py-1.5 rounded-full" style={{ background: C.cream, color: C.copper }}>
+          <Heart className="w-3 h-3" /> We love a good question
+        </div>
+        <h1 className="font-display text-5xl md:text-6xl leading-[1.05] mb-4" style={{ color: C.navy }}>
+          Let's talk<br /><span className="font-display-italic" style={{ color: C.coral }}>Maldives.</span>
+        </h1>
+        <p className="text-base max-w-lg" style={{ color: C.textMid }}>
+          Got a question? Want us to build a custom trip? Or just want to know which island has the best reef? We're here for all of it.
+        </p>
+      </div>
+
+      <div className="grid lg:grid-cols-[1fr_380px] gap-12">
+        {/* Form */}
+        <div className="rounded-3xl p-8 md:p-10" style={{ background: 'white', boxShadow: '0 4px 24px rgba(12,52,65,0.07)' }}>
+          {submitted ? (
+            <div className="text-center py-10">
+              <div className="text-5xl mb-4">🌴</div>
+              <h3 className="font-display text-2xl mb-2" style={{ color: C.navy }}>Message received!</h3>
+              <p className="text-sm" style={{ color: C.textMid }}>We'll get back to you within 24 hours. In the meantime, maybe start planning that trip...</p>
+              <button onClick={() => setSubmitted(false)} className="mt-6 px-6 py-3 rounded-full text-sm font-semibold" style={{ background: C.sand, color: C.navy }}>Send another</button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} noValidate>
+              <h2 className="font-display text-2xl mb-6" style={{ color: C.navy }}>Send us a message</h2>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                {[['firstName', 'First name', 'Amira', 'given-name'], ['lastName', 'Last name', 'Hassan', 'family-name']].map(([f, label, ph, ac]) => (
+                  <div key={f}>
+                    <label htmlFor={`c-${f}`} className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>{label}</label>
+                    <input id={`c-${f}`} value={form[f]} onChange={setField(f)} className={inputCls} style={inputStyle(f)} placeholder={ph} autoComplete={ac} />
+                    {errors[f] && <p className="text-xs mt-1" style={{ color: C.error }} role="alert">{errors[f]}</p>}
+                  </div>
+                ))}
+              </div>
+              <div className="mb-4">
+                <label htmlFor="c-email" className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Email address</label>
+                <input id="c-email" type="email" value={form.email} onChange={setField('email')} className={inputCls} style={inputStyle('email')} placeholder="you@example.com" autoComplete="email" />
+                {errors.email && <p className="text-xs mt-1" style={{ color: C.error }} role="alert">{errors.email}</p>}
+              </div>
+              <div className="mb-4">
+                <label htmlFor="c-subject" className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Subject</label>
+                <input id="c-subject" value={form.subject} onChange={setField('subject')} className={inputCls} style={inputStyle('subject')} placeholder="Planning a honeymoon, question about Baa Atoll…" />
+                {errors.subject && <p className="text-xs mt-1" style={{ color: C.error }} role="alert">{errors.subject}</p>}
+              </div>
+              <div className="mb-6">
+                <label htmlFor="c-message" className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Message</label>
+                <textarea id="c-message" value={form.message} onChange={setField('message')} className={inputCls + ' resize-none'} style={inputStyle('message')} rows={5} placeholder="Tell us everything…" />
+                {errors.message && <p className="text-xs mt-1" style={{ color: C.error }} role="alert">{errors.message}</p>}
+              </div>
+              <button type="submit" className="w-full py-4 rounded-2xl text-white text-sm font-semibold flex items-center justify-center gap-2 transition-transform hover:scale-[1.02]" style={{ background: `linear-gradient(135deg, ${C.coral} 0%, ${C.copper} 100%)` }}>
+                Send message <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+          )}
+        </div>
+
+        {/* Info panel */}
+        <div className="space-y-4">
+          {[
+            { icon: MapPin, label: 'Based in', value: 'Malé, Republic of Maldives', sub: 'Open Mon – Sat, 9am – 6pm' },
+            { icon: Heart, label: 'WhatsApp', value: '+960 300 0000', sub: 'Fastest way to reach us' },
+            { icon: Sun, label: 'Email', value: 'hello@faru.co', sub: 'We reply within 24 hours' },
+          ].map(({ icon: Icon, label, value, sub }) => (
+            <div key={label} className="flex items-start gap-4 p-5 rounded-2xl" style={{ background: 'white', border: `1px solid ${C.border}` }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: C.sand }}>
+                <Icon className="w-4 h-4" style={{ color: C.coral }} />
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-[0.2em] mb-0.5 font-semibold" style={{ color: C.textLight }}>{label}</div>
+                <div className="font-semibold text-sm" style={{ color: C.navy }}>{value}</div>
+                <div className="text-xs mt-0.5" style={{ color: C.textLight }}>{sub}</div>
+              </div>
+            </div>
+          ))}
+
+          <div className="p-5 rounded-2xl" style={{ background: C.cream }}>
+            <div className="font-display text-lg mb-2" style={{ color: C.navy }}>Response time</div>
+            <p className="text-sm" style={{ color: C.textMid }}>We typically reply within a few hours during business hours. For urgent trip planning, WhatsApp is your best bet.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ========== MAIN APP ========== */
 
 export default function App() {
@@ -440,6 +749,7 @@ export default function App() {
   const [activityQty, setActivityQty]         = useState(saved.activityQty ?? {});
   const [toasts, setToasts]                   = useState([]);
   const [showModal, setShowModal]             = useState(false);
+  const [currentPage, setCurrentPage]         = useState('home');
 
   const prevKey  = useRef('');
   const toastId  = useRef(0);
@@ -624,6 +934,15 @@ export default function App() {
     subtotal, gst, totalWithGst,
   };
 
+  /* --- Navigate from Destinations to wizard --- */
+  const planFromIsland = (type, islandId) => {
+    setPackageType(type);
+    setSelectedIslands([islandId]);
+    prevKey.current = '';
+    setStep(2);
+    setCurrentPage('home');
+  };
+
   /* ===== RENDER ===== */
   return (
     <div className="min-h-screen w-full" style={{ background: C.sand, fontFamily: "'Manrope', sans-serif" }}>
@@ -631,7 +950,7 @@ export default function App() {
       {/* ===== HEADER ===== */}
       <header className="border-b backdrop-blur-sm sticky top-0 z-30" style={{ borderColor: C.border, background: 'rgba(255,249,240,0.9)' }}>
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <button onClick={resetTrip} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity" aria-label="Go home">
+          <button onClick={() => setCurrentPage('home')} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity" aria-label="Go home">
             <div className="w-9 h-9 rounded-full flex items-center justify-center shadow-sm" style={{ background: C.navy }}>
               <Waves className="w-4 h-4 text-white" aria-hidden="true" />
             </div>
@@ -647,9 +966,13 @@ export default function App() {
 
           <div className="flex items-center gap-3">
             <div className="hidden md:flex items-center gap-6 text-sm" style={{ color: C.textMid }}>
-              <span className="cursor-default hover:text-opacity-70 transition-opacity">Destinations</span>
-              <span className="cursor-default hover:text-opacity-70 transition-opacity">Journal</span>
-              <span className="cursor-default hover:text-opacity-70 transition-opacity">Contact</span>
+              {[['destinations', 'Destinations'], ['journal', 'Journal'], ['contact', 'Contact']].map(([page, label]) => (
+                <button key={page} onClick={() => setCurrentPage(page)}
+                  className="transition-colors hover:opacity-100"
+                  style={{ color: currentPage === page ? C.navy : C.textMid, fontWeight: currentPage === page ? 600 : 400 }}>
+                  {label}
+                </button>
+              ))}
             </div>
             {step > 1 && (
               <button
@@ -666,6 +989,13 @@ export default function App() {
         </div>
       </header>
 
+      {/* ===== OTHER PAGES ===== */}
+      {currentPage === 'destinations' && <DestinationsPage onPlanTrip={planFromIsland} />}
+      {currentPage === 'journal' && <JournalPage />}
+      {currentPage === 'contact' && <ContactPage />}
+
+      {/* ===== WIZARD (home) ===== */}
+      {currentPage === 'home' && <>
       {/* ===== HERO ===== */}
       <div className="max-w-7xl mx-auto px-6 pt-12 pb-8">
         <div className="flex items-end justify-between flex-wrap gap-4 mb-10">
@@ -1219,6 +1549,8 @@ export default function App() {
           )}
         </div>
       )}
+
+      </>}
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <BookingModal isOpen={showModal} onClose={() => setShowModal(false)} summary={bookingSummary} />
