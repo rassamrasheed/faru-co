@@ -123,7 +123,7 @@ const FEATURED = [
     packageType: 'resort',
     islands: ['baa', 'south-ari'],
     month: 2,
-    cardBg: 'linear-gradient(135deg, #fdf0e8 0%, #fde8d4 100%)',
+    image: '/images/honeymoon.png',
     accentColor: C.copper,
     highlights: ['7 nights', 'Private resort', '2 atolls'],
   },
@@ -139,7 +139,7 @@ const FEATURED = [
     packageType: 'local',
     islands: ['dhigurah', 'rasdhoo', 'maafushi'],
     month: 6,
-    cardBg: 'linear-gradient(135deg, #e0f5f2 0%, #c8ece8 100%)',
+    image: '/images/adventure.png',
     accentColor: C.teal,
     highlights: ['10 nights', 'Local islands', '3 atolls'],
   },
@@ -155,7 +155,7 @@ const FEATURED = [
     packageType: 'local',
     islands: ['maafushi', 'hulhumale'],
     month: 1,
-    cardBg: 'linear-gradient(135deg, #fffde0 0%, #fef3b8 100%)',
+    image: '/images/family.png',
     accentColor: '#b8962e',
     highlights: ['8 nights', 'Local islands', '4 guests'],
   },
@@ -171,7 +171,7 @@ const FEATURED = [
     packageType: 'local',
     islands: ['thulusdhoo'],
     month: 5,
-    cardBg: 'linear-gradient(135deg, #ede8ff 0%, #ddd5ff 100%)',
+    image: '/images/surf.png',
     accentColor: '#7a5af8',
     highlights: ['5 nights', 'Local island', 'Solo'],
   },
@@ -369,36 +369,43 @@ function FeaturedCard({ pkg, onClick }) {
     <button
       onClick={onClick}
       className="text-left rounded-3xl overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl group w-full"
-      style={{ background: pkg.cardBg, boxShadow: '0 4px 20px rgba(12,52,65,0.08)' }}
+      style={{ boxShadow: '0 4px 20px rgba(12,52,65,0.10)' }}
       aria-label={`Start ${pkg.name} package`}
     >
-      <div className="p-6">
+      {/* Image */}
+      <div className="relative h-44 overflow-hidden">
+        <img
+          src={pkg.image}
+          alt={pkg.name}
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+        />
+        {/* Gradient overlay */}
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(12,52,65,0.7) 0%, rgba(12,52,65,0.1) 60%, transparent 100%)' }} />
         {/* Badge */}
-        <div className="flex items-center justify-between mb-4">
-          <span
-            className="text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-1 rounded-full text-white"
-            style={{ background: pkg.badgeColor }}
-          >
-            {pkg.badge}
-          </span>
-          <span className="text-2xl">{pkg.emoji}</span>
-        </div>
+        <span
+          className="absolute top-3 left-3 text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-1 rounded-full text-white"
+          style={{ background: pkg.badgeColor }}
+        >
+          {pkg.badge}
+        </span>
+      </div>
 
-        {/* Name */}
-        <h3 className="font-display text-xl leading-tight mb-1" style={{ color: C.navy }}>
+      {/* Content */}
+      <div className="p-5" style={{ background: 'white' }}>
+        <h3 className="font-display text-lg leading-tight mb-1" style={{ color: C.navy }}>
           {pkg.name}
         </h3>
-        <p className="text-sm leading-snug mb-4" style={{ color: C.textMid }}>
+        <p className="text-xs leading-snug mb-3" style={{ color: C.textMid }}>
           {pkg.tagline}
         </p>
 
         {/* Highlights */}
-        <div className="flex flex-wrap gap-1.5 mb-5">
+        <div className="flex flex-wrap gap-1.5 mb-4">
           {pkg.highlights.map(h => (
             <span
               key={h}
-              className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-              style={{ background: 'rgba(255,255,255,0.7)', color: pkg.accentColor }}
+              className="text-[10px] font-semibold px-2.5 py-1 rounded-full"
+              style={{ background: C.sand, color: pkg.accentColor }}
             >
               {h}
             </span>
@@ -769,7 +776,7 @@ export default function App() {
                     <button
                       key={p.id}
                       onClick={() => setPackageType(p.id)}
-                      className="text-left rounded-3xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl border-2"
+                      className="text-left rounded-3xl overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl border-2 group"
                       style={{
                         borderColor: packageType === p.id ? C.navy : 'transparent',
                         background: p.id === 'local' ? C.cream : C.seafoam,
@@ -777,37 +784,13 @@ export default function App() {
                       }}
                       aria-pressed={packageType === p.id}
                     >
-                      <div className="h-48 relative overflow-hidden grain">
-                        {p.id === 'local' ? (
-                          <svg viewBox="0 0 400 200" className="w-full h-full" aria-hidden="true">
-                            <defs><linearGradient id="sky1" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#f8d9a8"/><stop offset="1" stopColor="#efc896"/></linearGradient></defs>
-                            <rect width="400" height="200" fill="url(#sky1)"/>
-                            <circle cx="320" cy="60" r="28" fill="#f4a261" opacity="0.9"/>
-                            <path d="M0,140 Q100,120 200,135 T400,130 L400,200 L0,200 Z" fill="#e8c792"/>
-                            <path d="M0,160 Q100,145 200,155 T400,150 L400,200 L0,200 Z" fill="#d4a574"/>
-                            <g transform="translate(60,80)"><rect x="-2" y="0" width="4" height="70" fill="#4a3728"/><path d="M0,0 Q-25,-10 -40,-5 M0,0 Q25,-10 40,-5 M0,0 Q-15,-25 -25,-30 M0,0 Q15,-25 25,-30" stroke="#3d5941" strokeWidth="3" fill="none" strokeLinecap="round"/></g>
-                            <g transform="translate(340,90)"><rect x="-2" y="0" width="4" height="60" fill="#4a3728"/><path d="M0,0 Q-20,-8 -32,-4 M0,0 Q20,-8 32,-4 M0,0 Q-12,-20 -20,-24 M0,0 Q12,-20 20,-24" stroke="#3d5941" strokeWidth="3" fill="none" strokeLinecap="round"/></g>
-                            <rect x="170" y="110" width="60" height="35" fill="#faf0d7"/>
-                            <path d="M165,110 L200,88 L235,110 Z" fill="#8b5a3c"/>
-                            <rect x="195" y="125" width="10" height="20" fill="#4a3728"/>
-                          </svg>
-                        ) : (
-                          <svg viewBox="0 0 400 200" className="w-full h-full" aria-hidden="true">
-                            <defs><linearGradient id="sky2" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#b8d8d4"/><stop offset="1" stopColor="#7fb5ae"/></linearGradient></defs>
-                            <rect width="400" height="200" fill="url(#sky2)"/>
-                            <path d="M0,130 Q200,115 400,130 L400,200 L0,200 Z" fill="#4a8a8a"/>
-                            <path d="M0,150 Q200,140 400,150 L400,200 L0,200 Z" fill="#2d6668"/>
-                            {[80,160,240,320].map((x,i) => (
-                              <g key={i} transform={`translate(${x},110)`}>
-                                <rect x="-2" y="20" width="4" height="30" fill="#3a2a1e"/>
-                                <rect x="18" y="20" width="4" height="30" fill="#3a2a1e"/>
-                                <rect x="-10" y="8" width="34" height="16" fill="#f0e4c8"/>
-                                <path d="M-14,8 L7,-6 L28,8 Z" fill="#7a5840"/>
-                              </g>
-                            ))}
-                            <rect x="70" y="125" width="270" height="3" fill="#5a4030"/>
-                          </svg>
-                        )}
+                      <div className="h-48 relative overflow-hidden">
+                        <img
+                          src={p.id === 'local' ? '/images/local-island.png' : '/images/private-resort.png'}
+                          alt={p.name}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(12,52,65,0.35) 0%, transparent 60%)' }} />
                         {packageType === p.id && (
                           <div className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center shadow-lg" style={{ background: C.teal }} aria-hidden="true">
                             <Check className="w-4 h-4 text-white" />
