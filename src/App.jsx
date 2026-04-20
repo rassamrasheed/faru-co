@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { db, auth } from './firebase';
-import { collection, addDoc, updateDoc, doc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+﻿import { useState, useMemo, useEffect, useRef } from 'react';
+import { db } from './firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import AdminPanel from './AdminPanel';
 import {
   Waves, Fish, Anchor, Sun, Heart, Sparkles, MapPin,
   Plus, Minus, Check, Wind, Flower2, Camera, Utensils, Music,
@@ -56,16 +56,16 @@ const PACKAGES = [
 const ISLANDS = {
   local: [
     { id: 'maafushi',   name: 'Maafushi',   atoll: 'Kaafu Atoll', zone: 'north-male', note: 'The classic first-timer favorite',  tags: ['Beaches', 'Snorkeling'] },
-    { id: 'hulhumale',  name: 'Hulhumalé',  atoll: 'Kaafu Atoll', zone: 'north-male', note: '5 min from the airport',             tags: ['Convenient'] },
+    { id: 'hulhumale',  name: 'HulhumalÃ©',  atoll: 'Kaafu Atoll', zone: 'north-male', note: '5 min from the airport',             tags: ['Convenient'] },
     { id: 'thulusdhoo', name: 'Thulusdhoo', atoll: 'Kaafu Atoll', zone: 'north-male', note: 'Home of the legendary Cokes break',  tags: ['Surf'] },
     { id: 'fulidhoo',   name: 'Fulidhoo',   atoll: 'Vaavu Atoll', zone: 'vaavu',      note: 'Nurse sharks sleep at the jetty',    tags: ['Quiet', 'Sharks'] },
     { id: 'dhigurah',   name: 'Dhigurah',   atoll: 'Ari Atoll',   zone: 'ari',        note: 'Whale sharks every single day',      tags: ['Whale Sharks'] },
-    { id: 'rasdhoo',    name: 'Rasdhoo',    atoll: 'Ari Atoll',   zone: 'ari',        note: 'Hammerheads at dawn — seriously',    tags: ['Diving'] },
+    { id: 'rasdhoo',    name: 'Rasdhoo',    atoll: 'Ari Atoll',   zone: 'ari',        note: 'Hammerheads at dawn â€” seriously',    tags: ['Diving'] },
   ],
   resort: [
     { id: 'baa',        name: 'Baa Atoll',   atoll: 'UNESCO Biosphere', zone: 'baa',        note: 'Hanifaru Bay manta vortex',    tags: ['Mantas', 'UNESCO'] },
     { id: 'south-ari',  name: 'South Ari',   atoll: 'Ari Atoll',        zone: 'ari',        note: 'Whale shark sanctuary all year', tags: ['Whale Sharks'] },
-    { id: 'north-male', name: 'North Malé',  atoll: 'Kaafu Atoll',      zone: 'north-male', note: '20-min speedboat from airport',  tags: ['Accessible'] },
+    { id: 'north-male', name: 'North MalÃ©',  atoll: 'Kaafu Atoll',      zone: 'north-male', note: '20-min speedboat from airport',  tags: ['Accessible'] },
     { id: 'lhaviyani',  name: 'Lhaviyani',   atoll: 'Northern Atolls',  zone: 'lhaviyani',  note: 'Overwater villas, zero crowds',  tags: ['Secluded'] },
     { id: 'raa',        name: 'Raa Atoll',   atoll: 'Raa Atoll',        zone: 'raa',        note: 'House reefs untouched by time',  tags: ['Remote'] },
     { id: 'noonu',      name: 'Noonu Atoll', atoll: 'Noonu Atoll',      zone: 'noonu',      note: 'Seaplane-only. Gloriously remote', tags: ['Luxury'] },
@@ -116,7 +116,7 @@ const STEPS = [
 const FEATURED = [
   {
     id: 'honeymoon',
-    emoji: '🌅',
+    emoji: 'ðŸŒ…',
     name: 'Honeymoon Escape',
     tagline: 'For the chapter that changes everything.',
     badge: 'Most popular',
@@ -132,7 +132,7 @@ const FEATURED = [
   },
   {
     id: 'adventure',
-    emoji: '🦈',
+    emoji: 'ðŸ¦ˆ',
     name: 'Wild Blue Adventure',
     tagline: "Whale sharks won't find themselves.",
     badge: 'Best for divers',
@@ -148,7 +148,7 @@ const FEATURED = [
   },
   {
     id: 'family',
-    emoji: '🐠',
+    emoji: 'ðŸ ',
     name: 'Family Paradise',
     tagline: "The trip they'll talk about forever.",
     badge: 'Family friendly',
@@ -164,7 +164,7 @@ const FEATURED = [
   },
   {
     id: 'surf',
-    emoji: '🏄',
+    emoji: 'ðŸ„',
     name: 'Surf & Soul',
     tagline: 'Just you, the board, and perfect left-handers.',
     badge: 'Solo escape',
@@ -203,7 +203,7 @@ const ARTICLES = [
     id: 1,
     category: 'Honeymoon',
     title: 'The Perfect Maldives Honeymoon: A Complete Guide',
-    excerpt: 'From choosing between overwater bungalows and beach villas to timing your trip for the best weather — everything you need to plan the most romantic escape of your life.',
+    excerpt: 'From choosing between overwater bungalows and beach villas to timing your trip for the best weather â€” everything you need to plan the most romantic escape of your life.',
     image: '/images/honeymoon.png',
     date: 'March 2025',
     readTime: '8 min read',
@@ -213,7 +213,7 @@ const ARTICLES = [
     id: 2,
     category: 'Insider Tips',
     title: 'Local Islands vs. Private Resorts: An Honest Breakdown',
-    excerpt: "Budget vs. bliss? It's not that simple. Here's a real, unfiltered look at what each experience delivers — and who each one is really for.",
+    excerpt: "Budget vs. bliss? It's not that simple. Here's a real, unfiltered look at what each experience delivers â€” and who each one is really for.",
     image: '/images/local-island.png',
     date: 'February 2025',
     readTime: '6 min read',
@@ -223,7 +223,7 @@ const ARTICLES = [
     id: 3,
     category: 'Marine Life',
     title: "Swimming with Whale Sharks: What Nobody Tells You",
-    excerpt: "The briefing says stay 3 meters away. Then a 9-meter shark swims straight at you. Here's what it's actually like — and how to be ready for it.",
+    excerpt: "The briefing says stay 3 meters away. Then a 9-meter shark swims straight at you. Here's what it's actually like â€” and how to be ready for it.",
     image: '/images/adventure.png',
     date: 'January 2025',
     readTime: '5 min read',
@@ -369,7 +369,7 @@ function BookingModal({ isOpen, onClose, summary, tripData }) {
         <div className="px-8 py-6 border-b flex items-center justify-between" style={{ borderColor: C.border }}>
           <div>
             <div className="text-xs tracking-[0.2em] uppercase font-medium" style={{ color: C.coral }}>
-              Almost there ✦
+              Almost there âœ¦
             </div>
             <h2 id="modal-title" className="font-display text-2xl mt-0.5" style={{ color: C.navy }}>
               Let's make this real
@@ -383,10 +383,10 @@ function BookingModal({ isOpen, onClose, summary, tripData }) {
         <div className="px-8 py-6 max-h-[75vh] overflow-y-auto">
           {submitted ? (
             <div className="text-center py-8">
-              <div className="text-5xl mb-4">🌴</div>
+              <div className="text-5xl mb-4">ðŸŒ´</div>
               <h3 className="font-display text-2xl mb-2" style={{ color: C.navy }}>You're on your way!</h3>
               <p className="text-sm mb-5" style={{ color: C.textMid }}>
-                We'll confirm your trip and send a final quote within 24 hours. Get excited — this is going to be amazing.
+                We'll confirm your trip and send a final quote within 24 hours. Get excited â€” this is going to be amazing.
               </p>
               <div className="inline-block px-5 py-2.5 rounded-full text-sm font-medium mb-4" style={{ background: C.cream, color: C.navy }}>
                 Reference: <span className="font-display text-base">{bookingRef}</span>
@@ -511,301 +511,6 @@ function FeaturedCard({ pkg, onClick }) {
   );
 }
 
-/* ========== ADMIN PAGE ========== */
-
-const STATUS_COLORS = {
-  new:       { bg: '#fff3e0', color: '#8a5a2b' },
-  contacted: { bg: '#d8f0ec', color: '#2a9d8f' },
-  confirmed: { bg: '#e8f5e9', color: '#2e7d32' },
-  declined:  { bg: '#fce4ec', color: '#c62828' },
-  read:      { bg: '#d8f0ec', color: '#2a9d8f' },
-  replied:   { bg: '#e8f5e9', color: '#2e7d32' },
-};
-
-function AdminPage() {
-  const [authUser, setAuthUser]       = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [loginEmail, setLoginEmail]   = useState('');
-  const [loginPw, setLoginPw]         = useState('');
-  const [loginErr, setLoginErr]       = useState('');
-  const [loginBusy, setLoginBusy]     = useState(false);
-  const [tab, setTab]                 = useState('bookings');
-  const [bookings, setBookings]       = useState([]);
-  const [contacts, setContacts]       = useState([]);
-  const [expanded, setExpanded]       = useState(null);
-
-  useEffect(() => onAuthStateChanged(auth, u => { setAuthUser(u); setAuthChecked(true); }), []);
-
-  useEffect(() => {
-    if (!authUser) return;
-    const u1 = onSnapshot(query(collection(db, 'bookings'), orderBy('createdAt', 'desc')),
-      s => setBookings(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const u2 = onSnapshot(query(collection(db, 'contacts'), orderBy('createdAt', 'desc')),
-      s => setContacts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    return () => { u1(); u2(); };
-  }, [authUser]);
-
-  const login = async e => {
-    e.preventDefault();
-    setLoginBusy(true); setLoginErr('');
-    try { await signInWithEmailAndPassword(auth, loginEmail, loginPw); }
-    catch { setLoginErr('Invalid email or password.'); }
-    finally { setLoginBusy(false); }
-  };
-
-  const setStatus = async (collName, id, status) => {
-    try { await updateDoc(doc(db, collName, id), { status }); } catch {}
-  };
-
-  const formatDate = ts => ts?.toDate?.()?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) ?? '—';
-
-  if (!authChecked) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: C.sand }}>
-      <div className="text-sm" style={{ color: C.textLight }}>Loading…</div>
-    </div>
-  );
-
-  if (!authUser) return (
-    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: C.sand, fontFamily: "'Manrope', sans-serif" }}>
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md" style={{ background: C.navy }}>
-            <Waves className="w-5 h-5 text-white" />
-          </div>
-          <div className="font-display text-2xl" style={{ color: C.navy }}>Admin Panel</div>
-          <div className="text-xs tracking-[0.2em] uppercase mt-1" style={{ color: C.textLight }}>Faru & Co</div>
-        </div>
-        <form onSubmit={login} className="rounded-3xl p-8" style={{ background: 'white', boxShadow: '0 4px 24px rgba(12,52,65,0.10)' }}>
-          <div className="mb-4">
-            <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Email</label>
-            <input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} required
-              className="w-full px-4 py-2.5 rounded-xl border text-sm" style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }}
-              placeholder="admin@faru.co" autoComplete="email" />
-          </div>
-          <div className="mb-6">
-            <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Password</label>
-            <input type="password" value={loginPw} onChange={e => setLoginPw(e.target.value)} required
-              className="w-full px-4 py-2.5 rounded-xl border text-sm" style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }}
-              placeholder="••••••••" autoComplete="current-password" />
-          </div>
-          {loginErr && <p className="text-xs mb-4 text-center" style={{ color: C.error }}>{loginErr}</p>}
-          <button type="submit" disabled={loginBusy}
-            className="w-full py-3 rounded-2xl text-white text-sm font-semibold disabled:opacity-50 transition-opacity"
-            style={{ background: C.navy }}>
-            {loginBusy ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-
-  const newBookings = bookings.filter(b => b.status === 'new').length;
-  const newContacts = contacts.filter(c => c.status === 'new').length;
-  const confirmedRevenue = bookings.filter(b => b.status === 'confirmed').reduce((s, b) => s + (b.total || 0), 0);
-
-  return (
-    <div className="min-h-screen" style={{ background: C.sand, fontFamily: "'Manrope', sans-serif" }}>
-      {/* Admin Header */}
-      <div className="border-b sticky top-0 z-30" style={{ background: 'white', borderColor: C.border }}>
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: C.navy }}>
-              <Waves className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <div className="font-display text-lg leading-none" style={{ color: C.navy }}>Faru & Co</div>
-              <div className="text-[10px] tracking-[0.2em] uppercase" style={{ color: C.coral }}>Admin</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-xs hidden sm:block" style={{ color: C.textLight }}>{authUser.email}</span>
-            <button onClick={() => signOut(auth)}
-              className="text-xs px-3 py-1.5 rounded-full border transition-colors hover:bg-gray-50"
-              style={{ borderColor: C.border, color: C.textMid }}>
-              Sign out
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {[
-            { label: 'Total Requests',  value: bookings.length,                                    sub: `${newBookings} new`,          color: C.navy  },
-            { label: 'New Requests',    value: newBookings,                                         sub: 'awaiting response',           color: C.coral },
-            { label: 'Confirmed',       value: bookings.filter(b => b.status === 'confirmed').length, sub: `$${confirmedRevenue.toLocaleString()} revenue`, color: C.teal  },
-            { label: 'Messages',        value: contacts.length,                                    sub: `${newContacts} unread`,        color: C.copper},
-          ].map(s => (
-            <div key={s.label} className="rounded-2xl p-5" style={{ background: 'white', border: `1px solid ${C.border}` }}>
-              <div className="text-xs uppercase tracking-wider mb-2" style={{ color: C.textLight }}>{s.label}</div>
-              <div className="font-display text-3xl mb-1" style={{ color: s.color }}>{s.value}</div>
-              <div className="text-xs" style={{ color: C.textLight }}>{s.sub}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6">
-          {[['bookings', 'Booking Requests', newBookings], ['contacts', 'Messages', newContacts]].map(([t, label, badge]) => (
-            <button key={t} onClick={() => { setTab(t); setExpanded(null); }}
-              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all"
-              style={{ background: tab === t ? C.navy : 'white', color: tab === t ? 'white' : C.textMid, border: `1.5px solid ${tab === t ? C.navy : C.border}` }}>
-              {label} ({tab === t ? (t === 'bookings' ? bookings.length : contacts.length) : (t === 'bookings' ? bookings.length : contacts.length)})
-              {badge > 0 && <span className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center" style={{ background: C.coral, color: 'white' }}>{badge}</span>}
-            </button>
-          ))}
-        </div>
-
-        {/* Bookings list */}
-        {tab === 'bookings' && (
-          <div className="space-y-3">
-            {bookings.length === 0 && (
-              <div className="text-center py-16 rounded-2xl" style={{ background: 'white', border: `1px solid ${C.border}` }}>
-                <div className="text-3xl mb-3">📭</div>
-                <p className="text-sm" style={{ color: C.textLight }}>No booking requests yet.</p>
-              </div>
-            )}
-            {bookings.map(b => {
-              const exp = expanded === b.id;
-              const sc  = STATUS_COLORS[b.status] ?? STATUS_COLORS.new;
-              return (
-                <div key={b.id} className="rounded-2xl overflow-hidden" style={{ background: 'white', border: `1px solid ${C.border}` }}>
-                  <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-gray-50 transition-colors select-none"
-                    onClick={() => setExpanded(exp ? null : b.id)}>
-                    <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-3 items-center min-w-0">
-                      <div className="min-w-0">
-                        <div className="font-semibold text-sm truncate" style={{ color: C.navy }}>{b.firstName} {b.lastName}</div>
-                        <div className="text-xs" style={{ color: C.textLight }}>{b.ref}</div>
-                      </div>
-                      <div className="text-xs truncate hidden md:block" style={{ color: C.textMid }}>{b.packageName?.split('·')[0]?.trim()}</div>
-                      <div className="text-xs hidden md:block" style={{ color: C.textMid }}>{b.nights}n · {b.guests} guests</div>
-                      <div className="font-display text-xl hidden md:block" style={{ color: C.navy }}>${(b.total || 0).toLocaleString()}</div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-full whitespace-nowrap"
-                          style={{ background: sc.bg, color: sc.color }}>{b.status}</span>
-                        <span className="text-xs" style={{ color: C.textLight }}>{exp ? '▲' : '▼'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {exp && (
-                    <div className="px-5 pb-5 pt-3 border-t" style={{ borderColor: C.borderFaint }}>
-                      <div className="grid md:grid-cols-2 gap-6 mb-5">
-                        <div>
-                          <div className="text-xs uppercase tracking-wider mb-3 font-semibold" style={{ color: C.textLight }}>Contact Details</div>
-                          <div className="space-y-1 text-sm" style={{ color: C.navy }}>
-                            <div className="font-semibold">{b.firstName} {b.lastName}</div>
-                            <div style={{ color: C.teal }}>{b.email}</div>
-                            <div>{b.phone}</div>
-                            {b.notes && <div className="mt-2 p-3 rounded-xl text-xs leading-relaxed" style={{ background: C.sand, color: C.textMid }}>{b.notes}</div>}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-xs uppercase tracking-wider mb-3 font-semibold" style={{ color: C.textLight }}>Trip Details</div>
-                          <div className="text-sm space-y-1" style={{ color: C.navy }}>
-                            <div>{b.packageName}</div>
-                            <div style={{ color: C.textMid }}>{b.nights} nights · {b.guests} guest{b.guests !== 1 ? 's' : ''}</div>
-                            {b.islandNames && <div style={{ color: C.textMid }}>{b.islandNames}</div>}
-                            <div className="font-display text-xl mt-2">${(b.total || 0).toLocaleString()} <span className="text-xs font-sans" style={{ color: C.textLight }}>incl. GST</span></div>
-                            <div className="text-xs" style={{ color: C.textLight }}>Submitted {formatDate(b.createdAt)}</div>
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs uppercase tracking-wider mb-2 font-semibold" style={{ color: C.textLight }}>Status</div>
-                        <div className="flex gap-2 flex-wrap">
-                          {['new', 'contacted', 'confirmed', 'declined'].map(s => {
-                            const ssc = STATUS_COLORS[s];
-                            const active = b.status === s;
-                            return (
-                              <button key={s} onClick={() => setStatus('bookings', b.id, s)}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-full capitalize transition-all"
-                                style={{ background: active ? ssc.color : ssc.bg, color: active ? 'white' : ssc.color }}>
-                                {s}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Contacts list */}
-        {tab === 'contacts' && (
-          <div className="space-y-3">
-            {contacts.length === 0 && (
-              <div className="text-center py-16 rounded-2xl" style={{ background: 'white', border: `1px solid ${C.border}` }}>
-                <div className="text-3xl mb-3">📭</div>
-                <p className="text-sm" style={{ color: C.textLight }}>No messages yet.</p>
-              </div>
-            )}
-            {contacts.map(c => {
-              const exp = expanded === c.id;
-              const sc  = STATUS_COLORS[c.status] ?? STATUS_COLORS.new;
-              return (
-                <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: 'white', border: `1px solid ${C.border}` }}>
-                  <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-gray-50 transition-colors select-none"
-                    onClick={() => setExpanded(exp ? null : c.id)}>
-                    <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-3 items-center min-w-0">
-                      <div className="min-w-0">
-                        <div className="font-semibold text-sm" style={{ color: C.navy }}>{c.firstName} {c.lastName}</div>
-                        <div className="text-xs truncate" style={{ color: C.textLight }}>{c.email}</div>
-                      </div>
-                      <div className="text-sm truncate hidden md:block" style={{ color: C.textMid }}>{c.subject}</div>
-                      <div className="text-xs hidden md:block" style={{ color: C.textLight }}>{formatDate(c.createdAt)}</div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-full"
-                          style={{ background: sc.bg, color: sc.color }}>{c.status}</span>
-                        <span className="text-xs" style={{ color: C.textLight }}>{exp ? '▲' : '▼'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {exp && (
-                    <div className="px-5 pb-5 pt-3 border-t" style={{ borderColor: C.borderFaint }}>
-                      <div className="mb-4">
-                        <div className="text-xs uppercase tracking-wider mb-1 font-semibold" style={{ color: C.textLight }}>From</div>
-                        <div className="text-sm font-semibold" style={{ color: C.navy }}>{c.firstName} {c.lastName}</div>
-                        <div className="text-sm" style={{ color: C.teal }}>{c.email}</div>
-                      </div>
-                      <div className="mb-5">
-                        <div className="text-xs uppercase tracking-wider mb-2 font-semibold" style={{ color: C.textLight }}>Message</div>
-                        <div className="p-4 rounded-2xl text-sm leading-relaxed" style={{ background: C.sand, color: C.textMid }}>{c.message}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs uppercase tracking-wider mb-2 font-semibold" style={{ color: C.textLight }}>Status</div>
-                        <div className="flex gap-2">
-                          {['new', 'read', 'replied'].map(s => {
-                            const ssc = STATUS_COLORS[s];
-                            const active = c.status === s;
-                            return (
-                              <button key={s} onClick={() => setStatus('contacts', c.id, s)}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-full capitalize transition-all"
-                                style={{ background: active ? ssc.color : ssc.bg, color: active ? 'white' : ssc.color }}>
-                                {s}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /* ========== DESTINATIONS PAGE ========== */
 
 function DestinationsPage({ onPlanTrip }) {
@@ -818,7 +523,7 @@ function DestinationsPage({ onPlanTrip }) {
       {/* Hero */}
       <div className="mb-12">
         <div className="inline-flex items-center gap-2 text-xs font-bold tracking-[0.25em] uppercase mb-4 px-3 py-1.5 rounded-full" style={{ background: C.gold + '33', color: '#9a6f00' }}>
-          <MapPin className="w-3 h-3" /> 1,192 islands · your shortlist
+          <MapPin className="w-3 h-3" /> 1,192 islands Â· your shortlist
         </div>
         <h1 className="font-display text-5xl md:text-6xl leading-[1.05] mb-4" style={{ color: C.navy }}>
           Every island is<br /><span className="font-display-italic" style={{ color: C.teal }}>a different world.</span>
@@ -906,7 +611,7 @@ function JournalPage() {
             <h2 className="font-display text-3xl leading-tight mb-4" style={{ color: C.navy }}>{featured.title}</h2>
             <p className="text-sm leading-relaxed mb-6" style={{ color: C.textMid }}>{featured.excerpt}</p>
             <div className="flex items-center justify-between">
-              <div className="text-xs" style={{ color: C.textLight }}>{featured.date} · {featured.readTime}</div>
+              <div className="text-xs" style={{ color: C.textLight }}>{featured.date} Â· {featured.readTime}</div>
               <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: C.coral }}>Read more <ArrowRight className="w-4 h-4" /></span>
             </div>
           </div>
@@ -925,7 +630,7 @@ function JournalPage() {
               <h3 className="font-display text-lg leading-tight mb-2" style={{ color: C.navy }}>{article.title}</h3>
               <p className="text-sm leading-relaxed mb-4" style={{ color: C.textMid }}>{article.excerpt}</p>
               <div className="flex items-center justify-between">
-                <div className="text-xs" style={{ color: C.textLight }}>{article.date} · {article.readTime}</div>
+                <div className="text-xs" style={{ color: C.textLight }}>{article.date} Â· {article.readTime}</div>
                 <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: C.coral }}>Read <ArrowRight className="w-3 h-3" /></span>
               </div>
             </div>
@@ -1000,7 +705,7 @@ function ContactPage() {
         <div className="rounded-3xl p-8 md:p-10" style={{ background: 'white', boxShadow: '0 4px 24px rgba(12,52,65,0.07)' }}>
           {submitted ? (
             <div className="text-center py-10">
-              <div className="text-5xl mb-4">🌴</div>
+              <div className="text-5xl mb-4">ðŸŒ´</div>
               <h3 className="font-display text-2xl mb-2" style={{ color: C.navy }}>Message received!</h3>
               <p className="text-sm" style={{ color: C.textMid }}>We'll get back to you within 24 hours. In the meantime, maybe start planning that trip...</p>
               <button onClick={() => setSubmitted(false)} className="mt-6 px-6 py-3 rounded-full text-sm font-semibold" style={{ background: C.sand, color: C.navy }}>Send another</button>
@@ -1024,12 +729,12 @@ function ContactPage() {
               </div>
               <div className="mb-4">
                 <label htmlFor="c-subject" className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Subject</label>
-                <input id="c-subject" value={form.subject} onChange={setField('subject')} className={inputCls} style={inputStyle('subject')} placeholder="Planning a honeymoon, question about Baa Atoll…" />
+                <input id="c-subject" value={form.subject} onChange={setField('subject')} className={inputCls} style={inputStyle('subject')} placeholder="Planning a honeymoon, question about Baa Atollâ€¦" />
                 {errors.subject && <p className="text-xs mt-1" style={{ color: C.error }} role="alert">{errors.subject}</p>}
               </div>
               <div className="mb-6">
                 <label htmlFor="c-message" className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Message</label>
-                <textarea id="c-message" value={form.message} onChange={setField('message')} className={inputCls + ' resize-none'} style={inputStyle('message')} rows={5} placeholder="Tell us everything…" />
+                <textarea id="c-message" value={form.message} onChange={setField('message')} className={inputCls + ' resize-none'} style={inputStyle('message')} rows={5} placeholder="Tell us everythingâ€¦" />
                 {errors.message && <p className="text-xs mt-1" style={{ color: C.error }} role="alert">{errors.message}</p>}
               </div>
               <button type="submit" className="w-full py-4 rounded-2xl text-white text-sm font-semibold flex items-center justify-center gap-2 transition-transform hover:scale-[1.02]" style={{ background: `linear-gradient(135deg, ${C.coral} 0%, ${C.copper} 100%)` }}>
@@ -1042,7 +747,7 @@ function ContactPage() {
         {/* Info panel */}
         <div className="space-y-4">
           {[
-            { icon: MapPin, label: 'Based in', value: 'Malé, Republic of Maldives', sub: 'Open Mon – Sat, 9am – 6pm' },
+            { icon: MapPin, label: 'Based in', value: 'MalÃ©, Republic of Maldives', sub: 'Open Mon â€“ Sat, 9am â€“ 6pm' },
             { icon: Heart, label: 'WhatsApp', value: '+960 300 0000', sub: 'Fastest way to reach us' },
             { icon: Sun, label: 'Email', value: 'hello@faru.co', sub: 'We reply within 24 hours' },
           ].map(({ icon: Icon, label, value, sub }) => (
@@ -1140,8 +845,8 @@ export default function App() {
       if (removed.length) {
         const id  = ++toastId.current;
         const msg = removed.length === 1
-          ? `"${removed[0]}" removed — not available this month`
-          : `${removed.length} experiences removed — not available this month`;
+          ? `"${removed[0]}" removed â€” not available this month`
+          : `${removed.length} experiences removed â€” not available this month`;
         setTimeout(() => {
           setToasts(t => [...t, { id, message: msg }]);
           setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4500);
@@ -1238,11 +943,11 @@ export default function App() {
     if (step === 2) return 'Choose a travel month to continue.';
     if (step === 3) {
       if (!selectedIslands.length) return 'Pick at least one island.';
-      if (selectedIslands.length > nights) return `${selectedIslands.length} islands but only ${nights} nights — deselect one or add more nights.`;
+      if (selectedIslands.length > nights) return `${selectedIslands.length} islands but only ${nights} nights â€” deselect one or add more nights.`;
     }
     if (step === 4) {
       const diff = nights - allocated;
-      return `Assign all ${nights} nights — ${diff} night${diff !== 1 ? 's' : ''} still floating.`;
+      return `Assign all ${nights} nights â€” ${diff} night${diff !== 1 ? 's' : ''} still floating.`;
     }
     return null;
   };
@@ -1265,8 +970,8 @@ export default function App() {
   const islandNames = selectedIslands.map(id => islandById[id]?.name).filter(Boolean).join(', ');
 
   const bookingSummary = {
-    title:  `${pkg?.name ?? ''} · ${monthLabel ?? ''}`,
-    detail: `${nights} nights · ${guests} traveler${guests !== 1 ? 's' : ''} · ${islandNames || 'No islands'}`,
+    title:  `${pkg?.name ?? ''} Â· ${monthLabel ?? ''}`,
+    detail: `${nights} nights Â· ${guests} traveler${guests !== 1 ? 's' : ''} Â· ${islandNames || 'No islands'}`,
     subtotal, gst, totalWithGst,
   };
 
@@ -1331,7 +1036,7 @@ export default function App() {
       </header>
 
       {/* ===== OTHER PAGES ===== */}
-      {currentPage === 'admin' && <AdminPage />}
+      {currentPage === 'admin' && <AdminPanel onBack={() => setCurrentPage('home')} />}
       {currentPage === 'destinations' && <DestinationsPage onPlanTrip={planFromIsland} />}
       {currentPage === 'journal' && <JournalPage />}
       {currentPage === 'contact' && <ContactPage />}
@@ -1359,7 +1064,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2 text-sm px-4 py-2 rounded-full" style={{ background: 'white', color: C.textLight, boxShadow: '0 2px 12px rgba(12,52,65,0.08)' }}>
             <MapPin className="w-4 h-4" style={{ color: C.coral }} aria-hidden="true" />
-            Based in Malé · 1,192 islands
+            Based in MalÃ© Â· 1,192 islands
           </div>
         </div>
 
@@ -1404,7 +1109,7 @@ export default function App() {
         <main>
           <div className="fade-in" key={step}>
 
-            {/* ── STEP 1: STYLE ── */}
+            {/* â”€â”€ STEP 1: STYLE â”€â”€ */}
             {step === 1 && (
               <section aria-label="Choose your style of stay">
                 <h2 className="font-display text-3xl mb-2" style={{ color: C.navy }}>How do you want to wake up?</h2>
@@ -1452,7 +1157,7 @@ export default function App() {
                 <div className="flex items-center gap-4 my-10">
                   <div className="flex-1 h-px" style={{ background: C.border }} />
                   <span className="text-sm font-medium px-4 py-2 rounded-full whitespace-nowrap" style={{ background: 'white', color: C.textLight, border: `1px solid ${C.border}` }}>
-                    Or start with a curated trip ↓
+                    Or start with a curated trip â†“
                   </span>
                   <div className="flex-1 h-px" style={{ background: C.border }} />
                 </div>
@@ -1461,7 +1166,7 @@ export default function App() {
                 <div>
                   <div className="flex items-center justify-between mb-5">
                     <div>
-                      <div className="text-xs font-bold tracking-[0.2em] uppercase mb-1" style={{ color: C.coral }}>Popular escapes ✦</div>
+                      <div className="text-xs font-bold tracking-[0.2em] uppercase mb-1" style={{ color: C.coral }}>Popular escapes âœ¦</div>
                       <h2 className="font-display text-2xl" style={{ color: C.navy }}>Start with a curated trip</h2>
                     </div>
                     <div className="text-xs hidden sm:block" style={{ color: C.textLight }}>Pre-filled & ready to tweak</div>
@@ -1475,12 +1180,12 @@ export default function App() {
               </section>
             )}
 
-            {/* ── STEP 2: DATES ── */}
+            {/* â”€â”€ STEP 2: DATES â”€â”€ */}
             {step === 2 && (
               <section aria-label="Choose dates and guests">
                 <h2 className="font-display text-3xl mb-2" style={{ color: C.navy }}>When are you going?</h2>
                 <p className="mb-8" style={{ color: C.textMid }}>
-                  Dry season (Nov–Apr) = calm seas and blazing skies. Wet season (May–Oct) = fewer crowds, manta rays, and moody magic.
+                  Dry season (Novâ€“Apr) = calm seas and blazing skies. Wet season (Mayâ€“Oct) = fewer crowds, manta rays, and moody magic.
                 </p>
 
                 <fieldset className="mb-5 border-0 p-0 m-0">
@@ -1492,7 +1197,7 @@ export default function App() {
                         <button key={m.n} type="button" onClick={() => setTravelMonth(m.n)}
                           className="p-2 rounded-xl border-2 transition-all text-center hover:scale-105"
                           style={{ background: sel ? C.navy : 'white', borderColor: sel ? C.navy : C.border, color: sel ? 'white' : C.navy }}
-                          aria-pressed={sel} aria-label={`${m.name} — ${m.season} season`}
+                          aria-pressed={sel} aria-label={`${m.name} â€” ${m.season} season`}
                         >
                           <div className="text-xs font-semibold">{m.short}</div>
                           <div className="w-1.5 h-1.5 rounded-full mx-auto mt-1" style={{ background: m.season === 'dry' ? (sel ? C.gold : C.copper) : (sel ? C.ltTeal : C.teal) }} aria-hidden="true" />
@@ -1548,12 +1253,12 @@ export default function App() {
               </section>
             )}
 
-            {/* ── STEP 3: ISLANDS ── */}
+            {/* â”€â”€ STEP 3: ISLANDS â”€â”€ */}
             {step === 3 && (
               <section aria-label="Choose islands">
                 <h2 className="font-display text-3xl mb-2" style={{ color: C.navy }}>Which islands are calling?</h2>
                 <p className="mb-4" style={{ color: C.textMid }}>
-                  Stack them. Hop between them. Every one is a different world — up to {nights} for your {nights}-night trip.
+                  Stack them. Hop between them. Every one is a different world â€” up to {nights} for your {nights}-night trip.
                 </p>
 
                 {selectedIslands.length > nights && (
@@ -1595,7 +1300,7 @@ export default function App() {
               </section>
             )}
 
-            {/* ── STEP 4: ITINERARY ── */}
+            {/* â”€â”€ STEP 4: ITINERARY â”€â”€ */}
             {step === 4 && (
               <section aria-label="Plan nights per island">
                 <div className="flex items-start justify-between mb-2 flex-wrap gap-2">
@@ -1607,13 +1312,13 @@ export default function App() {
                   </button>
                 </div>
                 <p className="mb-6" style={{ color: C.textMid }}>
-                  Move fast or linger slow — {nights} nights, {selectedIslands.length} {selectedIslands.length === 1 ? 'island' : 'islands'}. Your call.
+                  Move fast or linger slow â€” {nights} nights, {selectedIslands.length} {selectedIslands.length === 1 ? 'island' : 'islands'}. Your call.
                 </p>
 
                 <div className="mb-4">
                   <div className="flex justify-between items-center mb-2 text-xs font-semibold tracking-[0.15em] uppercase" style={{ color: C.textLight }}>
                     <span>Nights allocated</span>
-                    <span style={{ color: allocatedOk ? C.teal : C.coral }} aria-live="polite">{allocated} / {nights} {allocatedOk ? '✓' : ''}</span>
+                    <span style={{ color: allocatedOk ? C.teal : C.coral }} aria-live="polite">{allocated} / {nights} {allocatedOk ? 'âœ“' : ''}</span>
                   </div>
                   <div className="flex h-4 rounded-full overflow-hidden" style={{ background: 'rgba(12,52,65,0.08)' }} role="img" aria-label={`${allocated} of ${nights} nights allocated`}>
                     {selectedIslands.map((id, i) => {
@@ -1634,7 +1339,7 @@ export default function App() {
                           <div className="font-display text-lg" style={{ color: C.navy }}>{island.name}</div>
                           <div className="text-xs flex items-center gap-2" style={{ color: C.textLight }}>
                             <span>{island.atoll}</span>
-                            {i > 0 && <><span aria-hidden="true">·</span><span className="flex items-center gap-1"><Plane className="w-3 h-3" aria-hidden="true" />transfer</span></>}
+                            {i > 0 && <><span aria-hidden="true">Â·</span><span className="flex items-center gap-1"><Plane className="w-3 h-3" aria-hidden="true" />transfer</span></>}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -1653,12 +1358,12 @@ export default function App() {
               </section>
             )}
 
-            {/* ── STEP 5: EXPERIENCES ── */}
+            {/* â”€â”€ STEP 5: EXPERIENCES â”€â”€ */}
             {step === 5 && (
               <section aria-label="Add experiences">
                 <h2 className="font-display text-3xl mb-2" style={{ color: C.navy }}>What memories are you collecting?</h2>
                 <p className="mb-8" style={{ color: C.textMid }}>
-                  Sunrise dives, manta rays at dusk, a private dinner on the sand — showing everything available in{' '}
+                  Sunrise dives, manta rays at dusk, a private dinner on the sand â€” showing everything available in{' '}
                   <span className="font-semibold" style={{ color: C.navy }}>{monthLabel}</span>.
                 </p>
 
@@ -1675,7 +1380,7 @@ export default function App() {
                         <div className="flex items-end justify-between mb-4 pb-3 border-b" style={{ borderColor: C.border }}>
                           <div>
                             <div className="text-xs tracking-[0.3em] uppercase mb-1 font-bold" style={{ color: C.coral }}>
-                              Days {dayStart}{n > 1 ? `–${dayEnd}` : ''} · {n} {n === 1 ? 'night' : 'nights'}
+                              Days {dayStart}{n > 1 ? `â€“${dayEnd}` : ''} Â· {n} {n === 1 ? 'night' : 'nights'}
                             </div>
                             <h3 className="font-display text-2xl" style={{ color: C.navy }}>
                               {island.name} <span className="font-display-italic text-base" style={{ color: C.textLight }}>at {island.atoll}</span>
@@ -1699,7 +1404,7 @@ export default function App() {
                                 <div className="flex-1 min-w-0">
                                   <div className="font-semibold text-sm" style={{ color: C.navy }}>{act.name}</div>
                                   <div className="text-xs flex items-center gap-2 mt-0.5" style={{ color: C.textLight }}>
-                                    <span>${act.price} pp</span><span aria-hidden="true">·</span><span>{act.duration}</span>
+                                    <span>${act.price} pp</span><span aria-hidden="true">Â·</span><span>{act.duration}</span>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-1.5 shrink-0">
@@ -1748,7 +1453,7 @@ export default function App() {
               </section>
             )}
 
-            {/* ── NAV BUTTONS ── */}
+            {/* â”€â”€ NAV BUTTONS â”€â”€ */}
             <div className="flex flex-col items-end gap-3 mt-12 pt-6 border-t" style={{ borderColor: C.border }}>
               <div className="flex justify-between items-center w-full">
                 <button onClick={() => setStep(s => Math.max(1, s-1))} disabled={step === 1}
@@ -1785,11 +1490,11 @@ export default function App() {
         {/* ===== SIDEBAR ===== */}
         <aside className="lg:sticky lg:top-20 h-fit" aria-label="Trip summary">
           <div className="rounded-3xl p-6 border" style={{ background: 'white', borderColor: C.border, boxShadow: '0 4px 24px rgba(12,52,65,0.07)' }}>
-            <div className="text-xs tracking-[0.3em] uppercase mb-4 font-bold" style={{ color: C.coral }}>Your escape ✦</div>
+            <div className="text-xs tracking-[0.3em] uppercase mb-4 font-bold" style={{ color: C.coral }}>Your escape âœ¦</div>
 
             {!pkg ? (
               <div className="py-10 text-center">
-                <div className="text-3xl mb-3">🌊</div>
+                <div className="text-3xl mb-3">ðŸŒŠ</div>
                 <p className="text-sm" style={{ color: C.textLight }}>Pick a style of stay to see your trip take shape.</p>
               </div>
             ) : (
@@ -1797,7 +1502,7 @@ export default function App() {
                 <div className="pb-4 mb-4 border-b" style={{ borderColor: C.borderFaint }}>
                   <div className="font-display text-xl" style={{ color: C.navy }}>{pkg.name}</div>
                   <div className="text-sm mt-1" style={{ color: C.textLight }}>
-                    {monthLabel && <>{monthLabel} · </>}{nights} nights · {guests} {guests === 1 ? 'traveler' : 'travelers'}
+                    {monthLabel && <>{monthLabel} Â· </>}{nights} nights Â· {guests} {guests === 1 ? 'traveler' : 'travelers'}
                   </div>
                 </div>
 
@@ -1822,7 +1527,7 @@ export default function App() {
                               <div className="pl-5 mt-1 space-y-0.5">
                                 {acts.map(a => (
                                   <div key={a.key} className="flex justify-between text-xs" style={{ color: C.textLight }}>
-                                    <span>{a.qty}× {a.name}</span>
+                                    <span>{a.qty}Ã— {a.name}</span>
                                     <span>${(a.price * a.qty * guests).toLocaleString()}</span>
                                   </div>
                                 ))}
@@ -1890,7 +1595,7 @@ export default function App() {
 
       {/* Footer */}
       <div className="text-center py-6 text-xs" style={{ color: C.textLight, borderTop: `1px solid ${C.border}` }}>
-        © {new Date().getFullYear()} Faru & Co · Malé, Maldives ·{' '}
+        Â© {new Date().getFullYear()} Faru & Co Â· MalÃ©, Maldives Â·{' '}
         <button onClick={() => setCurrentPage('admin')} className="hover:underline" style={{ color: C.textLight }}>Admin</button>
       </div>
     </div>
