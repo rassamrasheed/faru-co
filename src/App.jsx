@@ -1021,40 +1021,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* ===== FEATURED PACKAGES (step 1 only) ===== */}
-        {step === 1 && (
-          <div className="mb-10">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <div className="text-xs font-bold tracking-[0.2em] uppercase mb-1" style={{ color: C.coral }}>
-                  Popular escapes ✦
-                </div>
-                <h2 className="font-display text-2xl" style={{ color: C.navy }}>
-                  Start with a curated trip
-                </h2>
-              </div>
-              <div className="text-xs hidden sm:block" style={{ color: C.textLight }}>
-                Pre-filled & ready to tweak
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {FEATURED.map(fp => (
-                <FeaturedCard key={fp.id} pkg={fp} onClick={() => applyFeaturedPackage(fp)} />
-              ))}
-            </div>
-
-            {/* Divider */}
-            <div className="flex items-center gap-4 my-10">
-              <div className="flex-1 h-px" style={{ background: C.border }} />
-              <span className="text-sm font-medium px-4 py-2 rounded-full whitespace-nowrap" style={{ background: 'white', color: C.textLight, border: `1px solid ${C.border}` }}>
-                Or design yours from scratch ↓
-              </span>
-              <div className="flex-1 h-px" style={{ background: C.border }} />
-            </div>
-          </div>
-        )}
-
         {/* Step progress */}
         <nav
           aria-label="Booking steps"
@@ -1138,6 +1104,31 @@ export default function App() {
                       </div>
                     </button>
                   ))}
+                </div>
+
+                {/* Divider */}
+                <div className="flex items-center gap-4 my-10">
+                  <div className="flex-1 h-px" style={{ background: C.border }} />
+                  <span className="text-sm font-medium px-4 py-2 rounded-full whitespace-nowrap" style={{ background: 'white', color: C.textLight, border: `1px solid ${C.border}` }}>
+                    Or start with a curated trip ↓
+                  </span>
+                  <div className="flex-1 h-px" style={{ background: C.border }} />
+                </div>
+
+                {/* Featured packages */}
+                <div>
+                  <div className="flex items-center justify-between mb-5">
+                    <div>
+                      <div className="text-xs font-bold tracking-[0.2em] uppercase mb-1" style={{ color: C.coral }}>Popular escapes ✦</div>
+                      <h2 className="font-display text-2xl" style={{ color: C.navy }}>Start with a curated trip</h2>
+                    </div>
+                    <div className="text-xs hidden sm:block" style={{ color: C.textLight }}>Pre-filled & ready to tweak</div>
+                  </div>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    {FEATURED.map(fp => (
+                      <FeaturedCard key={fp.id} pkg={fp} onClick={() => applyFeaturedPackage(fp)} />
+                    ))}
+                  </div>
                 </div>
               </section>
             )}
