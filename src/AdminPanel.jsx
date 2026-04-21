@@ -1,16 +1,21 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { db, auth } from './firebase';
 import {
   collection, addDoc, updateDoc, doc, query, orderBy,
-  onSnapshot, writeBatch, Timestamp, deleteDoc,
+  onSnapshot, writeBatch, Timestamp, deleteDoc, increment,
 } from 'firebase/firestore';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
+import { initializeApp, getApps } from 'firebase/app';
 import {
   Waves, Search, LogOut, TrendingUp, CheckCircle, Clock,
   XCircle, MessageSquare, Mail, Phone, ChevronDown, ChevronUp,
   Database, MapPin, Star, Users, DollarSign, Inbox, Eye,
   LayoutDashboard, BookOpen, Filter, X, AlertCircle,
+  Settings, Grid, Edit2, Save, ToggleLeft, ToggleRight,
+  Package, Sliders, Tag, RefreshCw, Globe, ChevronRight,
+  Trash2, Plus, UserPlus, Shield, ShieldOff,
 } from 'lucide-react';
+import { seedAllCollections } from './seedData';
 
 /* ── theme ── */
 const C = {
@@ -207,12 +212,8 @@ const SEED_CONTACTS = [
 
 async function seedDemoData() {
   const batch = writeBatch(db);
-  for (const b of SEED_BOOKINGS) {
-    batch.set(doc(collection(db, 'bookings')), b);
-  }
-  for (const c of SEED_CONTACTS) {
-    batch.set(doc(collection(db, 'contacts')), c);
-  }
+  for (const b of SEED_BOOKINGS) batch.set(doc(collection(db, 'bookings')), b);
+  for (const c of SEED_CONTACTS) batch.set(doc(collection(db, 'contacts')), c);
   await batch.commit();
 }
 
@@ -221,6 +222,7 @@ const fmt = n => n?.toLocaleString('en-US') ?? '0';
 const fmtDate = ts => ts?.toDate?.()?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) ?? '—';
 const fmtDateShort = ts => ts?.toDate?.()?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) ?? '—';
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTH_FULL  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 /* ── StatCard ── */
 function StatCard({ icon: Icon, label, value, sub, color, bg }) {
@@ -308,6 +310,40 @@ function StatusButtons({ current, options, onSet }) {
   );
 }
 
+/* ── InlineInput ── */
+function InlineInput({ value, onSave, prefix = '$', type = 'number', min, max, className = '' }) {
+  const [local, setLocal] = useState(String(value ?? ''));
+  const [saving, setSaving] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => { setLocal(String(value ?? '')); }, [value]);
+
+  const save = async () => {
+    const parsed = type === 'number' ? parseFloat(local) : local;
+    if (type === 'number' && (isNaN(parsed) || parsed < 0)) { setLocal(String(value)); return; }
+    if (parsed === value) return;
+    setSaving(true);
+    try { await onSave(parsed); } finally { setSaving(false); }
+  };
+
+  return (
+    <div className={`flex items-center gap-1 ${className}`}>
+      {prefix && <span className="text-xs" style={{ color: C.textLight }}>{prefix}</span>}
+      <input
+        ref={ref}
+        type={type}
+        value={local}
+        min={min}
+        max={max}
+        onChange={e => setLocal(e.target.value)}
+        onBlur={save}
+        onKeyDown={e => { if (e.key === 'Enter') ref.current?.blur(); if (e.key === 'Escape') { setLocal(String(value)); ref.current?.blur(); } }}
+        className="w-16 text-xs font-semibold text-center rounded-lg px-1.5 py-1 border transition-all focus:outline-none"
+        style={{ borderColor: C.border, color: C.navy, background: saving ? C.seafoam : 'white' }}
+      />
+    </div>
+  );
+}
+
 /* ══════════════════════════════════════════════════
    MAIN ADMIN PANEL
 ══════════════════════════════════════════════════ */
@@ -322,6 +358,10 @@ export default function AdminPanel({ onBack }) {
   const [tab, setTab]                   = useState('overview');
   const [bookings, setBookings]         = useState([]);
   const [contacts, setContacts]         = useState([]);
+  const [islands, setIslands]           = useState([]);
+  const [activities, setActivities]     = useState([]);
+  const [packages, setPackages]         = useState([]);
+  const [settings, setSettings]         = useState(null);
   const [expanded, setExpanded]         = useState(null);
 
   const [bSearch, setBSearch]           = useState('');
@@ -331,6 +371,34 @@ export default function AdminPanel({ onBack }) {
 
   const [seeding, setSeeding]           = useState(false);
   const [seedDone, setSeedDone]         = useState(false);
+
+  const [settingsForm, setSettingsForm] = useState(null);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsSaved, setSettingsSaved]   = useState(false);
+
+  const [pkgEdit, setPkgEdit]           = useState(null);
+  const [pkgSaving, setPkgSaving]       = useState(false);
+
+  const [catalogView, setCatalogView]   = useState('islands');
+  const [addIslandOpen, setAddIslandOpen]     = useState(false);
+  const [addActivityOpen, setAddActivityOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm]     = useState(null); // { type, id, name }
+  const BLANK_ISLAND = { name:'', atoll:'', zone:'', note:'', tags:'', packageType:'local', basePerNight:80, image:'/images/local-island.png', active:true };
+  const BLANK_ACTIVITY = { name:'', iconName:'Fish', duration:'', defaultPrice:50, availableAt:'*', activeMonths:[1,2,3,4,5,6,7,8,9,10,11,12], active:true };
+  const BLANK_PKG = { name:'', tagline:'', badge:'', badgeColor:'#f4845f', accentColor:'#c97b4e', packageType:'local', nights:7, guests:2, month:1, islands:[], highlights:['','',''], image:'/images/honeymoon.png', active:true };
+  const [newIsland, setNewIsland]       = useState(BLANK_ISLAND);
+  const [newActivity, setNewActivity]   = useState(BLANK_ACTIVITY);
+  const [addSaving, setAddSaving]       = useState(false);
+  const [pkgModal, setPkgModal]         = useState(null); // null | { mode:'create'|'edit', data:{...} }
+  const [pkgModalSaving, setPkgModalSaving] = useState(false);
+  const [deletePkgConfirm, setDeletePkgConfirm] = useState(null);
+
+  const [adminUsers, setAdminUsers]         = useState([]);
+  const [addAdminOpen, setAddAdminOpen]     = useState(false);
+  const [newAdmin, setNewAdmin]             = useState({ email:'', displayName:'', password:'', role:'admin' });
+  const [addAdminSaving, setAddAdminSaving] = useState(false);
+  const [addAdminErr, setAddAdminErr]       = useState('');
+  const [removeAdminConfirm, setRemoveAdminConfirm] = useState(null);
 
   /* auth */
   useEffect(() => onAuthStateChanged(auth, u => { setAuthUser(u); setAuthChecked(true); }), []);
@@ -342,7 +410,17 @@ export default function AdminPanel({ onBack }) {
       s => setBookings(s.docs.map(d => ({ id: d.id, ...d.data() }))));
     const u2 = onSnapshot(query(collection(db, 'contacts'), orderBy('createdAt', 'desc')),
       s => setContacts(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    return () => { u1(); u2(); };
+    const u3 = onSnapshot(query(collection(db, 'islands'), orderBy('sortOrder')),
+      s => setIslands(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const u4 = onSnapshot(query(collection(db, 'activities'), orderBy('sortOrder')),
+      s => setActivities(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const u5 = onSnapshot(query(collection(db, 'curatedPackages'), orderBy('sortOrder')),
+      s => setPackages(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const u6 = onSnapshot(doc(db, 'settings', 'app'),
+      d => { if (d.exists()) { const data = d.data(); setSettings(data); setSettingsForm(f => f ?? data); } });
+    const u7 = onSnapshot(query(collection(db, 'admins'), orderBy('createdAt', 'asc')),
+      s => setAdminUsers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); };
   }, [authUser]);
 
   /* derived stats */
@@ -403,9 +481,208 @@ export default function AdminPanel({ onBack }) {
 
   const handleSeed = async () => {
     setSeeding(true);
-    try { await seedDemoData(); setSeedDone(true); setTab('bookings'); }
-    catch (e) { alert('Seed failed: ' + e.message); }
+    try {
+      await seedDemoData();
+      await seedAllCollections();
+      setSeedDone(true); setTab('bookings');
+    } catch (e) { alert('Seed failed: ' + e.message); }
     finally { setSeeding(false); }
+  };
+
+  const updateIsland = async (id, field, val) => {
+    await updateDoc(doc(db, 'islands', id), { [field]: val });
+  };
+
+  const updateActivityPrice = async (actId, islandId, price) => {
+    await updateDoc(doc(db, 'activities', actId), { [`prices.${islandId}`]: price });
+  };
+
+  const updateActivityDefault = async (actId, val) => {
+    await updateDoc(doc(db, 'activities', actId), { defaultPrice: val });
+  };
+
+  const toggleActivityActive = async (actId, current) => {
+    await updateDoc(doc(db, 'activities', actId), { active: !current });
+  };
+
+  const togglePackageActive = async (pkgId, current) => {
+    await updateDoc(doc(db, 'curatedPackages', pkgId), { active: !current });
+  };
+
+  const saveSettings = async e => {
+    e.preventDefault();
+    setSettingsSaving(true);
+    try {
+      await updateDoc(doc(db, 'settings', 'app'), {
+        gstRate:             parseFloat(settingsForm.gstRate),
+        transferCostLocal:   parseFloat(settingsForm.transferCostLocal),
+        transferCostResort:  parseFloat(settingsForm.transferCostResort),
+        maxNights:           parseInt(settingsForm.maxNights),
+        minNights:           parseInt(settingsForm.minNights),
+        maxGuests:           parseInt(settingsForm.maxGuests),
+        contactEmail:        settingsForm.contactEmail,
+        whatsapp:            settingsForm.whatsapp,
+      });
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2500);
+    } finally { setSettingsSaving(false); }
+  };
+
+  const savePkgEdit = async () => {
+    if (!pkgEdit) return;
+    setPkgSaving(true);
+    try {
+      const { id, ...data } = pkgEdit;
+      await updateDoc(doc(db, 'curatedPackages', id), data);
+      setPkgEdit(null);
+    } finally { setPkgSaving(false); }
+  };
+
+  const savePkgModal = async () => {
+    if (!pkgModal) return;
+    setPkgModalSaving(true);
+    try {
+      const d = pkgModal.data;
+      if (!d.name.trim()) return;
+      if (pkgModal.mode === 'create') {
+        const id = slugify(d.name);
+        const batch = writeBatch(db);
+        batch.set(doc(db, 'curatedPackages', id), {
+          ...d, id,
+          nights: parseInt(d.nights) || 7,
+          guests: parseInt(d.guests) || 2,
+          month: parseInt(d.month) || 1,
+          sortOrder: packages.length + 1,
+          stats: { clicks: 0, bookings: 0 },
+        });
+        await batch.commit();
+      } else {
+        const { id, ...rest } = d;
+        await updateDoc(doc(db, 'curatedPackages', id), {
+          ...rest,
+          nights: parseInt(rest.nights) || 7,
+          guests: parseInt(rest.guests) || 2,
+          month: parseInt(rest.month) || 1,
+        });
+      }
+      setPkgModal(null);
+    } catch(e) { alert('Error: ' + e.message); }
+    finally { setPkgModalSaving(false); }
+  };
+
+  const deletePkg = async () => {
+    if (!deletePkgConfirm) return;
+    try { await deleteDoc(doc(db, 'curatedPackages', deletePkgConfirm.id)); }
+    catch(e) { alert('Error: ' + e.message); }
+    finally { setDeletePkgConfirm(null); }
+  };
+
+  const addAdminUser = async () => {
+    setAddAdminErr('');
+    if (!newAdmin.email.trim() || !newAdmin.password.trim()) {
+      setAddAdminErr('Email and password are required.'); return;
+    }
+    if (newAdmin.password.length < 6) {
+      setAddAdminErr('Password must be at least 6 characters.'); return;
+    }
+    setAddAdminSaving(true);
+    try {
+      // Use a secondary app instance so current admin session isn't replaced
+      const secondaryAppName = 'admin-creator';
+      const existingApps = getApps();
+      const secondaryApp = existingApps.find(a => a.name === secondaryAppName)
+        ?? initializeApp(auth.app.options, secondaryAppName);
+      const secondaryAuth = getAuth(secondaryApp);
+
+      const { user } = await createUserWithEmailAndPassword(secondaryAuth, newAdmin.email.trim(), newAdmin.password);
+      await secondaryAuth.signOut();
+
+      // Store admin record in Firestore
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'admins', user.uid), {
+        uid: user.uid,
+        email: newAdmin.email.trim().toLowerCase(),
+        displayName: newAdmin.displayName.trim() || newAdmin.email.split('@')[0],
+        role: newAdmin.role,
+        createdAt: Timestamp.now(),
+        createdBy: authUser.email,
+      });
+      await batch.commit();
+
+      setNewAdmin({ email:'', displayName:'', password:'', role:'admin' });
+      setAddAdminOpen(false);
+    } catch(e) {
+      const msg = e.code === 'auth/email-already-in-use'
+        ? 'An account with this email already exists.'
+        : e.code === 'auth/invalid-email'
+        ? 'Invalid email address.'
+        : e.message;
+      setAddAdminErr(msg);
+    } finally { setAddAdminSaving(false); }
+  };
+
+  const removeAdminUser = async () => {
+    if (!removeAdminConfirm) return;
+    try { await deleteDoc(doc(db, 'admins', removeAdminConfirm.id)); }
+    catch(e) { alert('Error: ' + e.message); }
+    finally { setRemoveAdminConfirm(null); }
+  };
+
+  const slugify = str => str.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+  const addIsland = async () => {
+    if (!newIsland.name.trim()) return;
+    setAddSaving(true);
+    try {
+      const id = slugify(newIsland.name);
+      const tagsArr = newIsland.tags ? newIsland.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'islands', id), {
+        id, name: newIsland.name.trim(), atoll: newIsland.atoll.trim(),
+        zone: slugify(newIsland.zone || newIsland.atoll || newIsland.name),
+        note: newIsland.note.trim(), tags: tagsArr,
+        packageType: newIsland.packageType,
+        basePerNight: parseFloat(newIsland.basePerNight) || 80,
+        image: newIsland.image || '/images/local-island.png',
+        active: true, sortOrder: islands.length + 1,
+      });
+      await batch.commit();
+      setNewIsland(BLANK_ISLAND);
+      setAddIslandOpen(false);
+    } catch(e) { alert('Error: ' + e.message); }
+    finally { setAddSaving(false); }
+  };
+
+  const addActivity = async () => {
+    if (!newActivity.name.trim()) return;
+    setAddSaving(true);
+    try {
+      const id = slugify(newActivity.name);
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'activities', id), {
+        id, name: newActivity.name.trim(),
+        iconName: newActivity.iconName,
+        duration: newActivity.duration.trim(),
+        defaultPrice: parseFloat(newActivity.defaultPrice) || 50,
+        availableAt: newActivity.availableAt === '*' ? '*' : newActivity.availableAt,
+        activeMonths: newActivity.activeMonths,
+        prices: {},
+        active: true,
+        sortOrder: activities.length + 1,
+      });
+      await batch.commit();
+      setNewActivity(BLANK_ACTIVITY);
+      setAddActivityOpen(false);
+    } catch(e) { alert('Error: ' + e.message); }
+    finally { setAddSaving(false); }
+  };
+
+  const deleteItem = async () => {
+    if (!deleteConfirm) return;
+    try {
+      await deleteDoc(doc(db, deleteConfirm.type, deleteConfirm.id));
+    } catch(e) { alert('Error: ' + e.message); }
+    finally { setDeleteConfirm(null); }
   };
 
   /* ── loading ── */
@@ -453,6 +730,15 @@ export default function AdminPanel({ onBack }) {
     </div>
   );
 
+  const TABS = [
+    ['overview',  'Overview',  LayoutDashboard],
+    ['bookings',  'Bookings',  BookOpen],
+    ['messages',  'Messages',  MessageSquare],
+    ['catalog',   'Catalog',   Grid],
+    ['packages',  'Packages',  Package],
+    ['settings',  'Settings',  Settings],
+  ];
+
   /* ══════ DASHBOARD ══════ */
   return (
     <div className="min-h-screen" style={{ background: C.sand, fontFamily: "'Manrope', sans-serif" }}>
@@ -472,13 +758,9 @@ export default function AdminPanel({ onBack }) {
 
           {/* Tabs */}
           <nav className="hidden md:flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
-            {[
-              ['overview', 'Overview', LayoutDashboard],
-              ['bookings', 'Bookings', BookOpen],
-              ['messages', 'Messages', MessageSquare],
-            ].map(([t, label, Icon]) => (
+            {TABS.map(([t, label, Icon]) => (
               <button key={t} onClick={() => { setTab(t); setExpanded(null); }}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all"
                 style={{ background: tab === t ? 'white' : 'transparent', color: tab === t ? C.navy : C.textLight, boxShadow: tab === t ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}>
                 <Icon className="w-3.5 h-3.5" />
                 {label}
@@ -500,9 +782,9 @@ export default function AdminPanel({ onBack }) {
         </div>
 
         {/* Mobile tabs */}
-        <div className="md:hidden flex border-t" style={{ borderColor: C.border }}>
-          {[['overview','Overview',LayoutDashboard],['bookings','Bookings',BookOpen],['messages','Messages',MessageSquare]].map(([t,label,Icon]) => (
-            <button key={t} onClick={() => { setTab(t); setExpanded(null); }} className="flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-semibold"
+        <div className="md:hidden flex border-t overflow-x-auto" style={{ borderColor: C.border }}>
+          {TABS.map(([t, label, Icon]) => (
+            <button key={t} onClick={() => { setTab(t); setExpanded(null); }} className="flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2.5 text-[10px] font-semibold"
               style={{ color: tab === t ? C.navy : C.textLight, borderBottom: tab === t ? `2px solid ${C.navy}` : '2px solid transparent' }}>
               <Icon className="w-4 h-4" />
               {label}
@@ -519,7 +801,6 @@ export default function AdminPanel({ onBack }) {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h1 className="font-display text-2xl" style={{ color: C.navy }}>Overview</h1>
-                <p className="text-sm" style={{ color: C.textLight }}>Real-time snapshot of your business</p>
               </div>
               <button onClick={handleSeed} disabled={seeding || seedDone}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold border transition-all disabled:opacity-50"
@@ -531,14 +812,13 @@ export default function AdminPanel({ onBack }) {
 
             {/* Stat cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-              <StatCard icon={Inbox}       label="Total Requests"  value={stats.total}             sub={`${stats.newB} new · ${stats.contacted} in progress`} color={C.navy}   />
-              <StatCard icon={AlertCircle} label="Needs Response"  value={stats.newB}              sub="uncontacted requests" color={C.coral}  />
-              <StatCard icon={CheckCircle} label="Confirmed Trips" value={stats.confirmed}          sub={`${stats.declined} declined`}         color={C.teal}   />
-              <StatCard icon={DollarSign}  label="Confirmed Revenue" value={`$${fmt(stats.revenue)}`} sub={`avg $${fmt(stats.avgVal)} / trip`}   color={C.copper} />
+              <StatCard icon={Inbox}       label="Total Requests"    value={stats.total}               sub={`${stats.newB} new · ${stats.contacted} in progress`} color={C.navy}   />
+              <StatCard icon={AlertCircle} label="Needs Response"    value={stats.newB}                sub="uncontacted requests"  color={C.coral}  />
+              <StatCard icon={CheckCircle} label="Confirmed Trips"   value={stats.confirmed}            sub={`${stats.declined} declined`}          color={C.teal}   />
+              <StatCard icon={DollarSign}  label="Confirmed Revenue" value={`$${fmt(stats.revenue)}`}  sub={`avg $${fmt(stats.avgVal)} / trip`}     color={C.copper} />
             </div>
 
             <div className="grid md:grid-cols-3 gap-4 mb-6">
-              {/* Revenue chart */}
               <div className="md:col-span-2 rounded-2xl p-6" style={{ background: 'white', border: `1px solid ${C.border}` }}>
                 <div className="flex items-center justify-between mb-4">
                   <div>
@@ -550,7 +830,6 @@ export default function AdminPanel({ onBack }) {
                 <RevenueChart bookings={bookings} />
               </div>
 
-              {/* Status breakdown */}
               <div className="rounded-2xl p-6" style={{ background: 'white', border: `1px solid ${C.border}` }}>
                 <div className="font-semibold text-sm mb-4" style={{ color: C.navy }}>Booking Status</div>
                 <div className="space-y-3">
@@ -626,7 +905,6 @@ export default function AdminPanel({ onBack }) {
               </div>
             </div>
 
-            {/* Search + filter */}
             <div className="flex flex-col sm:flex-row gap-3 mb-5">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: C.textLight }} />
@@ -647,7 +925,6 @@ export default function AdminPanel({ onBack }) {
               </div>
             </div>
 
-            {/* Booking rows */}
             <div className="space-y-2">
               {filteredBookings.length === 0 && (
                 <div className="text-center py-16 rounded-2xl" style={{ background: 'white', border: `1px solid ${C.border}` }}>
@@ -659,8 +936,6 @@ export default function AdminPanel({ onBack }) {
                 const exp = expanded === b.id;
                 return (
                   <div key={b.id} className="rounded-2xl overflow-hidden transition-shadow" style={{ background: 'white', border: `1px solid ${C.border}`, boxShadow: exp ? '0 4px 16px rgba(12,52,65,0.08)' : 'none' }}>
-
-                    {/* Row header */}
                     <div className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition-colors select-none" onClick={() => toggle(b.id)}>
                       <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: C.navy }}>
                         {b.firstName?.[0]}{b.lastName?.[0]}
@@ -680,67 +955,124 @@ export default function AdminPanel({ onBack }) {
                       </div>
                     </div>
 
-                    {/* Expanded details */}
-                    {exp && (
-                      <div className="border-t px-5 pb-5 pt-4" style={{ borderColor: C.borderFaint }}>
-                        <div className="grid md:grid-cols-3 gap-5 mb-5">
+                    {exp && (() => {
+                      const islandList = Object.entries(b.nightsPerIsland ?? {});
+                      return (
+                      <div className="border-t" style={{ borderColor: C.borderFaint }}>
 
+                        {/* ── Top bar: contact + pricing ── */}
+                        <div className="grid md:grid-cols-2 gap-px" style={{ background: C.borderFaint }}>
                           {/* Contact */}
-                          <div className="rounded-xl p-4" style={{ background: C.sand }}>
-                            <div className="text-[10px] uppercase tracking-wider font-bold mb-3" style={{ color: C.textLight }}>Contact</div>
-                            <div className="text-sm font-semibold mb-1" style={{ color: C.navy }}>{b.firstName} {b.lastName}</div>
-                            <div className="text-xs mb-3" style={{ color: C.textLight }}>{fmtDate(b.createdAt)}</div>
-                            <div className="space-y-2">
+                          <div className="px-5 py-4" style={{ background: 'white' }}>
+                            <div className="text-[10px] uppercase tracking-wider font-bold mb-2.5" style={{ color: C.textLight }}>Contact</div>
+                            <div className="flex items-center gap-3 mb-2">
+                              <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: C.teal }}>
+                                {b.firstName?.[0]}{b.lastName?.[0]}
+                              </div>
+                              <div>
+                                <div className="font-semibold text-sm" style={{ color: C.navy }}>{b.firstName} {b.lastName}</div>
+                                <div className="text-xs" style={{ color: C.textLight }}>{fmtDate(b.createdAt)}</div>
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
                               <a href={`mailto:${b.email}`} className="flex items-center gap-2 text-xs hover:underline" style={{ color: C.teal }}>
                                 <Mail className="w-3.5 h-3.5 shrink-0" />{b.email}
                               </a>
-                              <a href={`https://wa.me/${b.phone?.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
-                                className="flex items-center gap-2 text-xs hover:underline" style={{ color: C.teal }}>
+                              <a href={`https://wa.me/${b.phone?.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs hover:underline" style={{ color: C.teal }}>
                                 <Phone className="w-3.5 h-3.5 shrink-0" />{b.phone}
                               </a>
                             </div>
                             {b.notes && (
-                              <div className="mt-3 p-2.5 rounded-lg text-xs leading-relaxed italic" style={{ background: C.cream, color: C.textMid }}>
+                              <div className="mt-3 p-2.5 rounded-xl text-xs leading-relaxed italic" style={{ background: C.cream, color: C.textMid }}>
                                 "{b.notes}"
                               </div>
                             )}
                           </div>
 
-                          {/* Trip */}
-                          <div className="rounded-xl p-4" style={{ background: C.sand }}>
-                            <div className="text-[10px] uppercase tracking-wider font-bold mb-3" style={{ color: C.textLight }}>Trip</div>
-                            <div className="space-y-1.5 text-sm">
-                              <div className="flex items-center gap-2" style={{ color: C.navy }}>
-                                <BookOpen className="w-3.5 h-3.5 shrink-0" style={{ color: C.coral }} />
-                                {b.packageName}
-                              </div>
-                              <div className="flex items-center gap-2 text-xs" style={{ color: C.textMid }}>
-                                <Users className="w-3.5 h-3.5 shrink-0" />
-                                {b.nights} nights · {b.guests} guest{b.guests !== 1 ? 's' : ''}
-                              </div>
-                              {b.islandNames && (
-                                <div className="flex items-center gap-2 text-xs" style={{ color: C.textMid }}>
-                                  <MapPin className="w-3.5 h-3.5 shrink-0" />{b.islandNames}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
                           {/* Pricing */}
-                          <div className="rounded-xl p-4" style={{ background: C.sand }}>
-                            <div className="text-[10px] uppercase tracking-wider font-bold mb-3" style={{ color: C.textLight }}>Pricing</div>
+                          <div className="px-5 py-4" style={{ background: 'white' }}>
+                            <div className="text-[10px] uppercase tracking-wider font-bold mb-2.5" style={{ color: C.textLight }}>Pricing</div>
+                            <div className="flex items-center gap-3 mb-4">
+                              <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ background: C.seafoam, color: C.teal }}>
+                                {b.packageType === 'resort' ? 'Resort' : 'Local Island'}
+                              </span>
+                              <span className="text-xs" style={{ color: C.textLight }}>{b.nights} nights · {b.guests} guest{b.guests !== 1 ? 's' : ''} · {b.monthName}</span>
+                            </div>
                             <div className="space-y-1.5 text-xs" style={{ color: C.textMid }}>
                               <div className="flex justify-between"><span>Subtotal</span><span>${fmt(b.subtotal)}</span></div>
                               <div className="flex justify-between"><span>GST (16%)</span><span>+${fmt(b.gst)}</span></div>
-                              <div className="flex justify-between pt-1.5 border-t font-bold text-sm" style={{ borderColor: C.border, color: C.navy }}>
-                                <span>Total</span><span className="font-display text-xl">${fmt(b.total)}</span>
-                              </div>
+                            </div>
+                            <div className="mt-3 pt-3 flex justify-between items-end border-t" style={{ borderColor: C.border }}>
+                              <span className="text-xs font-semibold" style={{ color: C.textMid }}>Total</span>
+                              <span className="font-display text-3xl leading-none" style={{ color: C.navy }}>${fmt(b.total)}</span>
                             </div>
                           </div>
                         </div>
 
-                        {/* Actions */}
-                        <div className="flex flex-wrap items-center gap-3">
+                        {/* ── Itinerary ── */}
+                        {islandList.length > 0 && (
+                          <div className="px-5 py-4" style={{ background: C.sand }}>
+                            <div className="text-[10px] uppercase tracking-wider font-bold mb-3" style={{ color: C.textLight }}>Itinerary</div>
+                            <div className="flex gap-3 overflow-x-auto pb-1">
+                              {islandList.map(([islandId, nights], idx) => {
+                                const isl = islands.find(i => i.id === islandId);
+                                const islandActs = Object.entries(b.activityQty ?? {})
+                                  .filter(([key]) => key.startsWith(islandId + ':'))
+                                  .map(([key, qty]) => {
+                                    const act = activities.find(a => a.id === key.split(':')[1]);
+                                    return { act, qty };
+                                  });
+                                return (
+                                  <div key={islandId} className="flex gap-3 items-start shrink-0" style={{ maxWidth: 240 }}>
+                                    {/* Connector line */}
+                                    {idx > 0 && (
+                                      <div className="flex items-center pt-5">
+                                        <div className="w-6 h-px" style={{ background: C.ltTeal }} />
+                                        <ChevronRight className="w-3 h-3 -ml-1" style={{ color: C.ltTeal }} />
+                                      </div>
+                                    )}
+                                    {/* Island card */}
+                                    <div className="rounded-2xl overflow-hidden shrink-0" style={{ width: 200, border: `1.5px solid ${C.border}`, background: 'white', boxShadow: '0 2px 8px rgba(12,52,65,0.06)' }}>
+                                      {/* Header */}
+                                      <div className="px-4 pt-4 pb-3" style={{ background: `linear-gradient(135deg, ${C.navy}, #1a4f62)` }}>
+                                        <div className="flex items-start justify-between gap-2 mb-1">
+                                          <div className="font-bold text-sm text-white leading-tight">{isl?.name ?? islandId}</div>
+                                          <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: C.coral, color: 'white' }}>
+                                            {nights}n
+                                          </span>
+                                        </div>
+                                        <div className="text-[10px] opacity-60 text-white">{isl?.atoll ?? ''}</div>
+                                      </div>
+                                      {/* Activities */}
+                                      <div className="px-3 py-3">
+                                        {islandActs.length > 0 ? (
+                                          <div className="space-y-1.5">
+                                            {islandActs.map(({ act, qty }, i) => (
+                                              <div key={i} className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                  <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: C.teal }} />
+                                                  <span className="text-xs truncate" style={{ color: C.textMid }}>{act?.name ?? '—'}</span>
+                                                </div>
+                                                {qty > 1 && (
+                                                  <span className="text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded-full" style={{ background: C.seafoam, color: C.teal }}>×{qty}</span>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <div className="text-xs" style={{ color: C.textLight }}>No activities booked</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ── Actions ── */}
+                        <div className="px-5 py-4 flex flex-wrap items-center gap-3 border-t" style={{ borderColor: C.borderFaint, background: 'white' }}>
                           <div>
                             <div className="text-[10px] uppercase tracking-wider font-bold mb-2" style={{ color: C.textLight }}>Update Status</div>
                             <StatusButtons current={b.status} options={['new','contacted','confirmed','declined']} onSet={s => setBookingStatus(b.id, s)} />
@@ -759,8 +1091,10 @@ export default function AdminPanel({ onBack }) {
                             </a>
                           </div>
                         </div>
+
                       </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -778,7 +1112,6 @@ export default function AdminPanel({ onBack }) {
               </div>
             </div>
 
-            {/* Search + filter */}
             <div className="flex flex-col sm:flex-row gap-3 mb-5">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: C.textLight }} />
@@ -863,7 +1196,923 @@ export default function AdminPanel({ onBack }) {
             </div>
           </div>
         )}
+
+        {/* ═══ CATALOG TAB ═══ */}
+        {tab === 'catalog' && (
+          <div>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h1 className="font-display text-2xl" style={{ color: C.navy }}>Catalog</h1>
+                <p className="text-sm" style={{ color: C.textLight }}>Edit island prices and activity pricing per island</p>
+              </div>
+              <div className="flex gap-1.5 bg-gray-100 p-1 rounded-xl">
+                {[['islands','Islands'],['activities','Activities'],['matrix','Price Matrix']].map(([v,l]) => (
+                  <button key={v} onClick={() => setCatalogView(v)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                    style={{ background: catalogView === v ? 'white' : 'transparent', color: catalogView === v ? C.navy : C.textLight, boxShadow: catalogView === v ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Islands table */}
+            {catalogView === 'islands' && (
+              <div className="rounded-2xl overflow-hidden" style={{ background: 'white', border: `1px solid ${C.border}` }}>
+                <div className="px-5 py-3.5 border-b flex items-center justify-between" style={{ borderColor: C.borderFaint }}>
+                  <div className="text-xs uppercase tracking-wider font-bold" style={{ color: C.textLight }}>
+                    Islands — click price to edit, saves instantly
+                  </div>
+                  <button onClick={() => setAddIslandOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white transition-all hover:scale-105"
+                    style={{ background: C.navy }}>
+                    <Plus className="w-3.5 h-3.5" /> Add Island
+                  </button>
+                </div>
+                {islands.length === 0 && (
+                  <div className="text-center py-10 text-sm" style={{ color: C.textLight }}>
+                    No islands yet. Load demo data from Overview or add one.
+                  </div>
+                )}
+                <div className="divide-y" style={{ borderColor: C.borderFaint }}>
+                  {['local','resort'].map(type => (
+                    <div key={type}>
+                      <div className="px-5 py-2 text-[10px] uppercase tracking-wider font-bold" style={{ color: C.textLight, background: C.sand }}>
+                        {type === 'local' ? 'Local Islands' : 'Resort Atolls'}
+                      </div>
+                      {islands.filter(i => i.packageType === type).map(island => (
+                        <div key={island.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm" style={{ color: C.navy }}>{island.name}</div>
+                            <div className="text-xs" style={{ color: C.textLight }}>{island.atoll}</div>
+                          </div>
+                          <div className="text-xs hidden md:block truncate max-w-[200px]" style={{ color: C.textMid }}>{island.note}</div>
+                          <div className="flex items-center gap-4 shrink-0">
+                            <div className="text-right">
+                              <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: C.textLight }}>Per Night</div>
+                              <InlineInput value={island.basePerNight} onSave={val => updateIsland(island.id, 'basePerNight', val)} />
+                            </div>
+                            <div className="text-right">
+                              <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: C.textLight }}>Active</div>
+                              <button onClick={() => updateIsland(island.id, 'active', !island.active)}
+                                className="w-10 h-6 rounded-full transition-all flex items-center"
+                                style={{ background: island.active ? C.teal : C.border, padding: '2px' }}>
+                                <div className="w-5 h-5 rounded-full bg-white shadow transition-transform"
+                                  style={{ transform: island.active ? 'translateX(16px)' : 'translateX(0)' }} />
+                              </button>
+                            </div>
+                            <button onClick={() => setDeleteConfirm({ type: 'islands', id: island.id, name: island.name })}
+                              className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                              style={{ background: '#fce4ec', color: '#c62828' }}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Activities list */}
+            {catalogView === 'activities' && (
+              <div className="rounded-2xl overflow-hidden" style={{ background: 'white', border: `1px solid ${C.border}` }}>
+                <div className="px-5 py-3.5 border-b flex items-center justify-between" style={{ borderColor: C.borderFaint }}>
+                  <div className="text-xs uppercase tracking-wider font-bold" style={{ color: C.textLight }}>
+                    Activities — default price used when no island-specific price is set
+                  </div>
+                  <button onClick={() => setAddActivityOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white transition-all hover:scale-105"
+                    style={{ background: C.navy }}>
+                    <Plus className="w-3.5 h-3.5" /> Add Activity
+                  </button>
+                </div>
+                {activities.length === 0 && (
+                  <div className="text-center py-10 text-sm" style={{ color: C.textLight }}>
+                    No activities yet. Load demo data from Overview or add one.
+                  </div>
+                )}
+                <div className="divide-y" style={{ borderColor: C.borderFaint }}>
+                  {activities.map(act => (
+                    <div key={act.id} className="flex items-center gap-4 px-5 py-4 group hover:bg-gray-50 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm" style={{ color: C.navy }}>{act.name}</div>
+                        <div className="text-xs mt-0.5" style={{ color: C.textLight }}>
+                          {act.duration}{act.duration ? ' · ' : ''}Available at: {act.availableAt === '*' ? 'All islands' : (Array.isArray(act.availableAt) ? act.availableAt.join(', ') : act.availableAt)}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-5 shrink-0">
+                        <div className="text-right">
+                          <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: C.textLight }}>Default $</div>
+                          <InlineInput value={act.defaultPrice} onSave={val => updateActivityDefault(act.id, val)} />
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: C.textLight }}>Active</div>
+                          <button onClick={() => toggleActivityActive(act.id, act.active)}
+                            className="w-10 h-6 rounded-full transition-all flex items-center"
+                            style={{ background: act.active ? C.teal : C.border, padding: '2px' }}>
+                            <div className="w-5 h-5 rounded-full bg-white shadow transition-transform"
+                              style={{ transform: act.active ? 'translateX(16px)' : 'translateX(0)' }} />
+                          </button>
+                        </div>
+                        <button onClick={() => setDeleteConfirm({ type: 'activities', id: act.id, name: act.name })}
+                          className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                          style={{ background: '#fce4ec', color: '#c62828' }}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Pricing matrix */}
+            {catalogView === 'matrix' && (
+              <div>
+                <div className="mb-3 text-xs" style={{ color: C.textLight }}>
+                  Click any price to edit. Press Enter or click away to save. Blank = uses default price.
+                </div>
+                {activities.length === 0 || islands.length === 0 ? (
+                  <div className="text-center py-10 rounded-2xl text-sm" style={{ color: C.textLight, background: 'white', border: `1px solid ${C.border}` }}>
+                    Load demo data first to populate the matrix.
+                  </div>
+                ) : (
+                  <div className="rounded-2xl overflow-auto" style={{ background: 'white', border: `1px solid ${C.border}` }}>
+                    <table className="text-xs min-w-max w-full">
+                      <thead>
+                        <tr style={{ borderBottom: `1px solid ${C.borderFaint}`, background: C.sand }}>
+                          <th className="text-left px-4 py-3 font-semibold sticky left-0 z-10 min-w-[150px]" style={{ color: C.navy, background: C.sand }}>Activity</th>
+                          <th className="px-3 py-3 font-semibold text-center whitespace-nowrap" style={{ color: C.textLight }}>Default</th>
+                          {islands.map(isl => (
+                            <th key={isl.id} className="px-3 py-3 font-semibold text-center whitespace-nowrap" style={{ color: C.navy }}>
+                              {isl.name}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activities.map((act, i) => {
+                          const isAvailableAt = id => act.availableAt === '*' || (Array.isArray(act.availableAt) && act.availableAt.includes(id));
+                          return (
+                            <tr key={act.id} style={{ borderBottom: i < activities.length - 1 ? `1px solid ${C.borderFaint}` : 'none' }}>
+                              <td className="px-4 py-3 font-semibold sticky left-0 z-10" style={{ color: C.navy, background: 'white' }}>
+                                <div>{act.name}</div>
+                                <div className="text-[10px] font-normal" style={{ color: C.textLight }}>{act.duration}</div>
+                              </td>
+                              <td className="px-3 py-3 text-center" style={{ color: C.textMid }}>
+                                <InlineInput
+                                  value={act.defaultPrice}
+                                  onSave={val => updateActivityDefault(act.id, val)}
+                                />
+                              </td>
+                              {islands.map(isl => {
+                                const avail = isAvailableAt(isl.id);
+                                const price = act.prices?.[isl.id];
+                                return (
+                                  <td key={isl.id} className="px-3 py-3 text-center">
+                                    {avail ? (
+                                      <InlineInput
+                                        value={price ?? act.defaultPrice}
+                                        onSave={val => updateActivityPrice(act.id, isl.id, val)}
+                                      />
+                                    ) : (
+                                      <span className="text-[10px]" style={{ color: C.borderFaint }}>—</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ PACKAGES TAB ═══ */}
+        {tab === 'packages' && (
+          <div>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h1 className="font-display text-2xl" style={{ color: C.navy }}>Curated Packages</h1>
+                <p className="text-sm" style={{ color: C.textLight }}>{packages.length} package{packages.length !== 1 ? 's' : ''} · shown on the home page</p>
+              </div>
+              <button onClick={() => setPkgModal({ mode: 'create', data: { ...BLANK_PKG } })}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-semibold text-white transition-all hover:scale-105"
+                style={{ background: C.navy }}>
+                <Plus className="w-4 h-4" /> New Package
+              </button>
+            </div>
+
+            {packages.length === 0 && (
+              <div className="rounded-3xl p-16 text-center" style={{ background: 'white', border: `2px dashed ${C.border}` }}>
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: C.sand }}>
+                  <Package className="w-7 h-7" style={{ color: C.textLight }} />
+                </div>
+                <div className="font-display text-xl mb-1" style={{ color: C.navy }}>No packages yet</div>
+                <p className="text-sm mb-5" style={{ color: C.textLight }}>Create your first curated trip or load demo data from Overview.</p>
+                <button onClick={() => setPkgModal({ mode: 'create', data: { ...BLANK_PKG } })}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold text-white"
+                  style={{ background: C.navy }}>
+                  <Plus className="w-4 h-4" /> Create Package
+                </button>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {packages.map(pkg => {
+                const islandLabels = (pkg.islands || []).map(id => islands.find(i => i.id === id)?.name ?? id);
+                return (
+                  <div key={pkg.id} className="rounded-2xl overflow-hidden group" style={{ background: 'white', border: `1px solid ${C.border}`, boxShadow: '0 2px 8px rgba(12,52,65,0.04)' }}>
+                    <div className="flex items-stretch">
+
+                      {/* Color stripe + thumbnail */}
+                      <div className="w-40 shrink-0 relative overflow-hidden" style={{ background: `linear-gradient(160deg, ${pkg.accentColor || C.navy}, ${pkg.badgeColor || C.coral})` }}>
+                        <img src={pkg.image} alt="" className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-50"
+                          onError={e => { e.target.style.display = 'none'; }} />
+                        <div className="absolute inset-0 flex flex-col justify-between p-3">
+                          <span className="self-start text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full text-white"
+                            style={{ background: 'rgba(0,0,0,0.25)' }}>
+                            {pkg.badge || 'Package'}
+                          </span>
+                          <div className="text-white">
+                            <div className="font-display text-sm leading-tight" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>{pkg.name}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0 px-5 py-4">
+                        <div className="flex items-start justify-between gap-4 mb-2">
+                          <div className="min-w-0">
+                            <div className="font-bold text-base leading-tight" style={{ color: C.navy }}>{pkg.name}</div>
+                            <div className="text-xs mt-0.5 truncate" style={{ color: C.textLight }}>{pkg.tagline}</div>
+                          </div>
+                          {/* Active toggle */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] font-semibold" style={{ color: pkg.active ? C.teal : C.textLight }}>
+                              {pkg.active ? 'Live' : 'Hidden'}
+                            </span>
+                            <button onClick={() => togglePackageActive(pkg.id, pkg.active)}
+                              className="w-10 h-6 rounded-full transition-all flex items-center shrink-0"
+                              style={{ background: pkg.active ? C.teal : C.border, padding: '2px' }}>
+                              <div className="w-5 h-5 rounded-full bg-white shadow transition-transform"
+                                style={{ transform: pkg.active ? 'translateX(16px)' : 'translateX(0)' }} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Meta row */}
+                        <div className="flex flex-wrap items-center gap-2 mb-3">
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                            style={{ background: pkg.packageType === 'resort' ? C.cream : C.seafoam, color: pkg.packageType === 'resort' ? C.copper : C.teal }}>
+                            {pkg.packageType === 'resort' ? 'Resort' : 'Local'}
+                          </span>
+                          <span className="text-xs" style={{ color: C.textMid }}>{pkg.nights} nights</span>
+                          <span style={{ color: C.border }}>·</span>
+                          <span className="text-xs" style={{ color: C.textMid }}>{pkg.guests} guests</span>
+                          <span style={{ color: C.border }}>·</span>
+                          <span className="text-xs" style={{ color: C.textMid }}>{MONTH_FULL[(pkg.month || 1) - 1]}</span>
+                        </div>
+
+                        {/* Islands */}
+                        {islandLabels.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            {islandLabels.map(name => (
+                              <span key={name} className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                style={{ background: C.navy + '10', color: C.navy }}>
+                                <MapPin className="w-2.5 h-2.5" />{name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Stats + actions */}
+                        <div className="flex items-center gap-4">
+                          <div className="flex gap-4">
+                            <div className="text-center">
+                              <div className="font-bold text-sm" style={{ color: C.navy }}>{pkg.stats?.clicks ?? 0}</div>
+                              <div className="text-[10px]" style={{ color: C.textLight }}>Clicks</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="font-bold text-sm" style={{ color: C.navy }}>{pkg.stats?.bookings ?? 0}</div>
+                              <div className="text-[10px]" style={{ color: C.textLight }}>Bookings</div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 ml-auto">
+                            <button onClick={() => setPkgModal({ mode: 'edit', data: { ...pkg } })}
+                              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all hover:scale-105"
+                              style={{ borderColor: C.border, color: C.navy, background: 'white' }}>
+                              <Edit2 className="w-3.5 h-3.5" /> Edit
+                            </button>
+                            <button onClick={() => setDeletePkgConfirm({ id: pkg.id, name: pkg.name })}
+                              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all hover:scale-105"
+                              style={{ background: '#fce4ec', color: '#c62828' }}>
+                              <Trash2 className="w-3.5 h-3.5" /> Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ SETTINGS TAB ═══ */}
+        {tab === 'settings' && (
+          <div>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h1 className="font-display text-2xl" style={{ color: C.navy }}>Settings</h1>
+                <p className="text-sm" style={{ color: C.textLight }}>Global rates and configuration — saved live to Firestore</p>
+              </div>
+            </div>
+
+            {!settingsForm ? (
+              <div className="text-center py-16 rounded-2xl text-sm" style={{ color: C.textLight, background: 'white', border: `1px solid ${C.border}` }}>
+                Load demo data first to initialise settings.
+              </div>
+            ) : (
+              <form onSubmit={saveSettings} className="max-w-xl space-y-5">
+
+                <div className="rounded-2xl p-6" style={{ background: 'white', border: `1px solid ${C.border}` }}>
+                  <div className="font-semibold text-sm mb-4" style={{ color: C.navy }}>Pricing Rules</div>
+                  <div className="space-y-4">
+                    {[
+                      ['gstRate',            'GST Rate',                 'Decimal (0.16 = 16%)',  'number', '0', '1'],
+                      ['transferCostLocal',   'Transfer Cost — Local $',  'Per island hop, per guest', 'number', '0'],
+                      ['transferCostResort',  'Transfer Cost — Resort $', 'Per island hop, per guest', 'number', '0'],
+                    ].map(([key, label, hint, type, min, max]) => (
+                      <div key={key}>
+                        <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>{label}</label>
+                        <input
+                          type={type} step="any" min={min} max={max}
+                          value={settingsForm[key] ?? ''}
+                          onChange={e => setSettingsForm(f => ({ ...f, [key]: e.target.value }))}
+                          className="w-full px-4 py-2.5 rounded-xl border text-sm"
+                          style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }}
+                        />
+                        <div className="text-[10px] mt-1" style={{ color: C.textLight }}>{hint}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl p-6" style={{ background: 'white', border: `1px solid ${C.border}` }}>
+                  <div className="font-semibold text-sm mb-4" style={{ color: C.navy }}>Trip Limits</div>
+                  <div className="grid grid-cols-3 gap-4">
+                    {[
+                      ['minNights', 'Min Nights', 'number', '1'],
+                      ['maxNights', 'Max Nights', 'number', '1'],
+                      ['maxGuests', 'Max Guests', 'number', '1'],
+                    ].map(([key, label, type, min]) => (
+                      <div key={key}>
+                        <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>{label}</label>
+                        <input
+                          type={type} min={min}
+                          value={settingsForm[key] ?? ''}
+                          onChange={e => setSettingsForm(f => ({ ...f, [key]: e.target.value }))}
+                          className="w-full px-4 py-2.5 rounded-xl border text-sm"
+                          style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl p-6" style={{ background: 'white', border: `1px solid ${C.border}` }}>
+                  <div className="font-semibold text-sm mb-4" style={{ color: C.navy }}>Contact Info</div>
+                  <div className="space-y-4">
+                    {[
+                      ['contactEmail', 'Contact Email', 'email', 'hello@faru.co'],
+                      ['whatsapp',     'WhatsApp Number', 'text',  '+960 300 0000'],
+                    ].map(([key, label, type, ph]) => (
+                      <div key={key}>
+                        <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>{label}</label>
+                        <input
+                          type={type} placeholder={ph}
+                          value={settingsForm[key] ?? ''}
+                          onChange={e => setSettingsForm(f => ({ ...f, [key]: e.target.value }))}
+                          className="w-full px-4 py-2.5 rounded-xl border text-sm"
+                          style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button type="submit" disabled={settingsSaving}
+                  className="flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-semibold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                  style={{ background: settingsSaved ? C.teal : C.navy }}>
+                  <Save className="w-4 h-4" />
+                  {settingsSaving ? 'Saving…' : settingsSaved ? 'Saved ✓' : 'Save Settings'}
+                </button>
+              </form>
+            )}
+
+            {/* ── Admin Users ── */}
+            <div className="max-w-xl mt-8">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="font-semibold text-base" style={{ color: C.navy }}>Admin Users</div>
+                  <div className="text-xs mt-0.5" style={{ color: C.textLight }}>People who can log in to this panel</div>
+                </div>
+                <button onClick={() => { setAddAdminErr(''); setAddAdminOpen(true); }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white transition-all hover:scale-105"
+                  style={{ background: C.navy }}>
+                  <UserPlus className="w-3.5 h-3.5" /> Add Admin
+                </button>
+              </div>
+
+              <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+                {/* Current user always shown first */}
+                <div className="flex items-center gap-3 px-4 py-3.5" style={{ background: C.seafoam, borderBottom: `1px solid ${C.border}` }}>
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: C.teal }}>
+                    {authUser?.email?.[0]?.toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm" style={{ color: C.navy }}>{authUser?.email}</div>
+                    <div className="text-xs" style={{ color: C.teal }}>You · currently signed in</div>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full"
+                    style={{ background: C.teal, color: 'white' }}>
+                    <Shield className="w-3 h-3 inline mr-1" />Admin
+                  </span>
+                </div>
+
+                {adminUsers.filter(u => u.email !== authUser?.email).map((u, i, arr) => (
+                  <div key={u.id} className="flex items-center gap-3 px-4 py-3.5 group hover:bg-gray-50 transition-colors"
+                    style={{ borderBottom: i < arr.length - 1 ? `1px solid ${C.borderFaint}` : 'none', background: 'white' }}>
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: C.navy }}>
+                      {(u.displayName || u.email)?.[0]?.toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm" style={{ color: C.navy }}>{u.displayName || u.email}</div>
+                      <div className="text-xs" style={{ color: C.textLight }}>{u.email}</div>
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shrink-0"
+                      style={{ background: u.role === 'admin' ? C.navy + '12' : C.sand, color: u.role === 'admin' ? C.navy : C.textLight }}>
+                      {u.role || 'admin'}
+                    </span>
+                    <button onClick={() => setRemoveAdminConfirm(u)}
+                      className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-full flex items-center justify-center transition-all"
+                      style={{ background: '#fce4ec', color: '#c62828' }}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+
+                {adminUsers.filter(u => u.email !== authUser?.email).length === 0 && (
+                  <div className="px-4 py-6 text-center" style={{ background: 'white' }}>
+                    <div className="text-xs" style={{ color: C.textLight }}>No other admins yet. Add one above.</div>
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] mt-2" style={{ color: C.textLight }}>
+                Removing an admin from this list revokes their Firestore access but their Firebase Auth account remains. Delete it from the Firebase Console if needed.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* ═══ PACKAGE CREATE / EDIT MODAL ═══ */}
+      {pkgModal && (() => {
+        const d = pkgModal.data;
+        const set = fn => setPkgModal(m => ({ ...m, data: fn(m.data) }));
+        const isCreate = pkgModal.mode === 'create';
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(12,52,65,0.55)' }}
+            onClick={e => { if (e.target === e.currentTarget) setPkgModal(null); }}>
+            <div className="w-full max-w-xl rounded-3xl overflow-hidden shadow-2xl" style={{ background: 'white', maxHeight: '92vh', overflowY: 'auto' }}>
+
+              {/* Modal header */}
+              <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: C.borderFaint }}>
+                <div>
+                  <div className="font-display text-xl" style={{ color: C.navy }}>{isCreate ? 'New Package' : 'Edit Package'}</div>
+                  <div className="text-xs" style={{ color: C.textLight }}>{isCreate ? 'Create a new curated trip' : d.name}</div>
+                </div>
+                <button onClick={() => setPkgModal(null)} style={{ color: C.textLight }}><X className="w-5 h-5" /></button>
+              </div>
+
+              <div className="p-6 space-y-5">
+
+                {/* Preview strip */}
+                <div className="rounded-2xl h-20 relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${d.accentColor || C.navy}, ${d.badgeColor || C.coral})` }}>
+                  <img src={d.image} alt="" className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-40" onError={e => { e.target.style.display='none'; }} />
+                  <div className="absolute inset-0 flex flex-col justify-center px-5">
+                    <div className="font-display text-lg text-white leading-tight" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>{d.name || 'Package name'}</div>
+                    <div className="text-xs text-white opacity-70">{d.tagline || 'Tagline'}</div>
+                  </div>
+                  {d.badge && (
+                    <span className="absolute top-3 right-4 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full text-white"
+                      style={{ background: 'rgba(0,0,0,0.3)' }}>{d.badge}</span>
+                  )}
+                </div>
+
+                {/* Name + tagline */}
+                {[['name','Package Name *','text'],['tagline','Tagline','text'],['badge','Badge Label','text'],['image','Image Path','text']].map(([key, label, type]) => (
+                  <div key={key}>
+                    <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>{label}</label>
+                    <input type={type} value={d[key] ?? ''} onChange={e => set(p => ({ ...p, [key]: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl border text-sm"
+                      style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }} />
+                  </div>
+                ))}
+
+                {/* Colors */}
+                <div className="grid grid-cols-2 gap-4">
+                  {[['badgeColor','Badge Color'],['accentColor','Accent Color']].map(([key, label]) => (
+                    <div key={key} className="flex items-center gap-3">
+                      <div>
+                        <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>{label}</label>
+                        <div className="flex items-center gap-2">
+                          <input type="color" value={d[key] || '#f4845f'} onChange={e => set(p => ({ ...p, [key]: e.target.value }))}
+                            className="w-9 h-9 rounded-lg border cursor-pointer" style={{ borderColor: C.border, padding: '2px' }} />
+                          <input type="text" value={d[key] || ''} onChange={e => set(p => ({ ...p, [key]: e.target.value }))}
+                            className="flex-1 px-3 py-2 rounded-xl border text-xs"
+                            style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Type */}
+                <div>
+                  <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Package Type</label>
+                  <div className="flex gap-2">
+                    {['local','resort'].map(t => (
+                      <button key={t} type="button" onClick={() => set(p => ({ ...p, packageType: t }))}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold border capitalize transition-all"
+                        style={{ background: d.packageType === t ? C.navy : 'white', color: d.packageType === t ? 'white' : C.textMid, borderColor: d.packageType === t ? C.navy : C.border }}>
+                        {t === 'resort' ? 'Resort / Overwater' : 'Local Island'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Nights / Guests / Month */}
+                <div className="grid grid-cols-3 gap-3">
+                  {[['nights','Nights','number','1','30'],['guests','Default Guests','number','1','12'],['month','Default Month','number','1','12']].map(([key, label, type, min, max]) => (
+                    <div key={key}>
+                      <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>{label}</label>
+                      <input type={type} min={min} max={max} value={d[key] ?? ''}
+                        onChange={e => set(p => ({ ...p, [key]: e.target.value }))}
+                        className="w-full px-4 py-2.5 rounded-xl border text-sm text-center"
+                        style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }} />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Islands multi-select */}
+                <div>
+                  <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>
+                    Islands ({(d.islands || []).length} selected)
+                  </label>
+                  <div className="flex flex-wrap gap-1.5 p-3 rounded-xl border" style={{ borderColor: C.border }}>
+                    {islands.filter(i => i.packageType === d.packageType).map(isl => {
+                      const sel = (d.islands || []).includes(isl.id);
+                      return (
+                        <button key={isl.id} type="button"
+                          onClick={() => set(p => ({ ...p, islands: sel ? p.islands.filter(x => x !== isl.id) : [...(p.islands || []), isl.id] }))}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
+                          style={{ background: sel ? C.navy : C.sand, color: sel ? 'white' : C.textMid }}>
+                          {sel && <CheckCircle className="w-3 h-3" />}
+                          {isl.name}
+                        </button>
+                      );
+                    })}
+                    {islands.filter(i => i.packageType === d.packageType).length === 0 && (
+                      <span className="text-xs" style={{ color: C.textLight }}>No {d.packageType} islands in catalog yet.</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Highlights */}
+                <div>
+                  <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Highlights (3 bullet points)</label>
+                  <div className="space-y-2">
+                    {[0,1,2].map(i => (
+                      <input key={i} type="text" placeholder={`e.g. ${['7 nights','Private resort','2 atolls'][i]}`}
+                        value={(d.highlights || [])[i] ?? ''}
+                        onChange={e => set(p => { const h = [...(p.highlights || ['','',''])]; h[i] = e.target.value; return { ...p, highlights: h }; })}
+                        className="w-full px-4 py-2.5 rounded-xl border text-sm"
+                        style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }} />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Footer actions */}
+                <div className="flex gap-3 pt-2">
+                  <button onClick={() => setPkgModal(null)}
+                    className="flex-1 py-3 rounded-2xl text-sm font-semibold border"
+                    style={{ borderColor: C.border, color: C.textMid }}>Cancel</button>
+                  <button onClick={savePkgModal} disabled={pkgModalSaving || !d.name?.trim()}
+                    className="flex-1 py-3 rounded-2xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                    style={{ background: C.navy }}>
+                    {pkgModalSaving ? 'Saving…' : isCreate ? 'Create Package' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ═══ DELETE PACKAGE CONFIRM ═══ */}
+      {deletePkgConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(12,52,65,0.5)' }}>
+          <div className="w-full max-w-sm rounded-3xl p-8 shadow-2xl text-center" style={{ background: 'white' }}>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: '#fce4ec' }}>
+              <Trash2 className="w-5 h-5" style={{ color: '#c62828' }} />
+            </div>
+            <div className="font-display text-xl mb-2" style={{ color: C.navy }}>Delete "{deletePkgConfirm.name}"?</div>
+            <p className="text-sm mb-6" style={{ color: C.textLight }}>This package will be removed from the home page immediately. This cannot be undone.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeletePkgConfirm(null)}
+                className="flex-1 py-3 rounded-2xl text-sm font-semibold border"
+                style={{ borderColor: C.border, color: C.textMid }}>Cancel</button>
+              <button onClick={deletePkg}
+                className="flex-1 py-3 rounded-2xl text-sm font-semibold text-white"
+                style={{ background: '#c62828' }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ADD ADMIN MODAL ═══ */}
+      {addAdminOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(12,52,65,0.55)' }}
+          onClick={e => { if (e.target === e.currentTarget) setAddAdminOpen(false); }}>
+          <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl" style={{ background: 'white' }}>
+            <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: C.borderFaint }}>
+              <div>
+                <div className="font-display text-xl" style={{ color: C.navy }}>Add Admin</div>
+                <div className="text-xs mt-0.5" style={{ color: C.textLight }}>Creates a Firebase Auth account</div>
+              </div>
+              <button onClick={() => setAddAdminOpen(false)} style={{ color: C.textLight }}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {[
+                ['email',       'Email *',        'email',    'admin@example.com'],
+                ['displayName', 'Display Name',   'text',     'e.g. Sara'],
+                ['password',    'Password *',     'password', 'Min. 6 characters'],
+              ].map(([key, label, type, ph]) => (
+                <div key={key}>
+                  <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>{label}</label>
+                  <input type={type} placeholder={ph} value={newAdmin[key]}
+                    onChange={e => setNewAdmin(p => ({ ...p, [key]: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border text-sm"
+                    style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }} />
+                </div>
+              ))}
+
+              <div>
+                <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Role</label>
+                <div className="flex gap-2">
+                  {[['admin','Admin — full access'],['viewer','Viewer — read only']].map(([val, label]) => (
+                    <button key={val} type="button" onClick={() => setNewAdmin(p => ({ ...p, role: val }))}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-semibold border transition-all"
+                      style={{ background: newAdmin.role === val ? C.navy : 'white', color: newAdmin.role === val ? 'white' : C.textMid, borderColor: newAdmin.role === val ? C.navy : C.border }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {addAdminErr && (
+                <div className="flex items-center gap-2 p-3 rounded-xl text-xs" style={{ background: '#fce4ec', color: '#c62828' }}>
+                  <AlertCircle className="w-4 h-4 shrink-0" />{addAdminErr}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-1">
+                <button onClick={() => setAddAdminOpen(false)}
+                  className="flex-1 py-3 rounded-2xl text-sm font-semibold border"
+                  style={{ borderColor: C.border, color: C.textMid }}>Cancel</button>
+                <button onClick={addAdminUser} disabled={addAdminSaving}
+                  className="flex-1 py-3 rounded-2xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                  style={{ background: C.navy }}>
+                  {addAdminSaving ? 'Creating…' : 'Create Admin'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ REMOVE ADMIN CONFIRM ═══ */}
+      {removeAdminConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(12,52,65,0.5)' }}>
+          <div className="w-full max-w-sm rounded-3xl p-8 shadow-2xl text-center" style={{ background: 'white' }}>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: '#fce4ec' }}>
+              <ShieldOff className="w-5 h-5" style={{ color: '#c62828' }} />
+            </div>
+            <div className="font-display text-xl mb-1" style={{ color: C.navy }}>Remove {removeAdminConfirm.displayName || removeAdminConfirm.email}?</div>
+            <p className="text-sm mb-1" style={{ color: C.textLight }}>{removeAdminConfirm.email}</p>
+            <p className="text-xs mb-6" style={{ color: C.textLight }}>
+              They'll lose access to this panel. Their Firebase Auth account stays active — delete it from the Firebase Console to fully revoke access.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setRemoveAdminConfirm(null)}
+                className="flex-1 py-3 rounded-2xl text-sm font-semibold border"
+                style={{ borderColor: C.border, color: C.textMid }}>Cancel</button>
+              <button onClick={removeAdminUser}
+                className="flex-1 py-3 rounded-2xl text-sm font-semibold text-white"
+                style={{ background: '#c62828' }}>Remove</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ADD ISLAND MODAL ═══ */}
+      {addIslandOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(12,52,65,0.5)' }}
+          onClick={e => { if (e.target === e.currentTarget) setAddIslandOpen(false); }}>
+          <div className="w-full max-w-md rounded-3xl overflow-hidden shadow-2xl" style={{ background: 'white', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: C.borderFaint }}>
+              <div className="font-display text-lg" style={{ color: C.navy }}>Add Island</div>
+              <button onClick={() => setAddIslandOpen(false)} style={{ color: C.textLight }}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {[
+                ['name',  'Island Name *',  'text', 'e.g. Dhiffushi'],
+                ['atoll', 'Atoll',          'text', 'e.g. Kaafu Atoll'],
+                ['note',  'Short note',     'text', 'e.g. Quiet beach, great house reef'],
+                ['tags',  'Tags (comma separated)', 'text', 'e.g. Beaches, Snorkeling'],
+                ['image', 'Image path',     'text', '/images/local-island.png'],
+              ].map(([key, label, type, ph]) => (
+                <div key={key}>
+                  <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>{label}</label>
+                  <input type={type} placeholder={ph} value={newIsland[key] ?? ''}
+                    onChange={e => setNewIsland(p => ({ ...p, [key]: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border text-sm"
+                    style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }} />
+                </div>
+              ))}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Type</label>
+                  <div className="flex gap-2">
+                    {['local','resort'].map(t => (
+                      <button key={t} type="button" onClick={() => setNewIsland(p => ({ ...p, packageType: t }))}
+                        className="flex-1 py-2 rounded-xl text-xs font-semibold border capitalize transition-all"
+                        style={{ background: newIsland.packageType === t ? C.navy : 'white', color: newIsland.packageType === t ? 'white' : C.textMid, borderColor: newIsland.packageType === t ? C.navy : C.border }}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Base Price / Night ($)</label>
+                  <input type="number" min="0" value={newIsland.basePerNight}
+                    onChange={e => setNewIsland(p => ({ ...p, basePerNight: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border text-sm"
+                    style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }} />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setAddIslandOpen(false)}
+                  className="flex-1 py-3 rounded-2xl text-sm font-semibold border"
+                  style={{ borderColor: C.border, color: C.textMid }}>Cancel</button>
+                <button onClick={addIsland} disabled={addSaving || !newIsland.name.trim()}
+                  className="flex-1 py-3 rounded-2xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                  style={{ background: C.navy }}>
+                  {addSaving ? 'Adding…' : 'Add Island'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ADD ACTIVITY MODAL ═══ */}
+      {addActivityOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(12,52,65,0.5)' }}
+          onClick={e => { if (e.target === e.currentTarget) setAddActivityOpen(false); }}>
+          <div className="w-full max-w-md rounded-3xl overflow-hidden shadow-2xl" style={{ background: 'white', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: C.borderFaint }}>
+              <div className="font-display text-lg" style={{ color: C.navy }}>Add Activity</div>
+              <button onClick={() => setAddActivityOpen(false)} style={{ color: C.textLight }}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {[
+                ['name',     'Activity Name *', 'text',   'e.g. Night Snorkeling'],
+                ['duration', 'Duration',        'text',   'e.g. 2 hours'],
+              ].map(([key, label, type, ph]) => (
+                <div key={key}>
+                  <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>{label}</label>
+                  <input type={type} placeholder={ph} value={newActivity[key] ?? ''}
+                    onChange={e => setNewActivity(p => ({ ...p, [key]: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border text-sm"
+                    style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }} />
+                </div>
+              ))}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Default Price ($)</label>
+                  <input type="number" min="0" value={newActivity.defaultPrice}
+                    onChange={e => setNewActivity(p => ({ ...p, defaultPrice: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border text-sm"
+                    style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }} />
+                </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Icon</label>
+                  <select value={newActivity.iconName} onChange={e => setNewActivity(p => ({ ...p, iconName: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border text-sm"
+                    style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }}>
+                    {['Fish','Anchor','Waves','Sparkles','Sun','Heart','Wind','Flower2','Camera','Utensils','Music','Compass'].map(ic => (
+                      <option key={ic} value={ic}>{ic}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Available At</label>
+                <div className="flex gap-2 mb-2">
+                  {['*', 'specific'].map(v => (
+                    <button key={v} type="button"
+                      onClick={() => setNewActivity(p => ({ ...p, availableAt: v === '*' ? '*' : [] }))}
+                      className="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all"
+                      style={{ background: (newActivity.availableAt === '*') === (v === '*') ? C.navy : 'white', color: (newActivity.availableAt === '*') === (v === '*') ? 'white' : C.textMid, borderColor: C.border }}>
+                      {v === '*' ? 'All islands' : 'Specific islands'}
+                    </button>
+                  ))}
+                </div>
+                {newActivity.availableAt !== '*' && (
+                  <div className="flex flex-wrap gap-1.5 p-3 rounded-xl border" style={{ borderColor: C.border }}>
+                    {islands.map(isl => {
+                      const selected = Array.isArray(newActivity.availableAt) && newActivity.availableAt.includes(isl.id);
+                      return (
+                        <button key={isl.id} type="button"
+                          onClick={() => setNewActivity(p => ({
+                            ...p,
+                            availableAt: selected
+                              ? p.availableAt.filter(i => i !== isl.id)
+                              : [...(Array.isArray(p.availableAt) ? p.availableAt : []), isl.id]
+                          }))}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
+                          style={{ background: selected ? C.teal : C.sand, color: selected ? 'white' : C.textMid }}>
+                          {isl.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setAddActivityOpen(false)}
+                  className="flex-1 py-3 rounded-2xl text-sm font-semibold border"
+                  style={{ borderColor: C.border, color: C.textMid }}>Cancel</button>
+                <button onClick={addActivity} disabled={addSaving || !newActivity.name.trim()}
+                  className="flex-1 py-3 rounded-2xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
+                  style={{ background: C.navy }}>
+                  {addSaving ? 'Adding…' : 'Add Activity'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ DELETE CONFIRM ═══ */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(12,52,65,0.5)' }}>
+          <div className="w-full max-w-sm rounded-3xl p-8 shadow-2xl text-center" style={{ background: 'white' }}>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: '#fce4ec' }}>
+              <Trash2 className="w-5 h-5" style={{ color: '#c62828' }} />
+            </div>
+            <div className="font-display text-xl mb-2" style={{ color: C.navy }}>Remove {deleteConfirm.name}?</div>
+            <p className="text-sm mb-6" style={{ color: C.textLight }}>
+              This will permanently delete this {deleteConfirm.type === 'islands' ? 'island' : 'activity'} from the catalog. Existing bookings won't be affected.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-3 rounded-2xl text-sm font-semibold border"
+                style={{ borderColor: C.border, color: C.textMid }}>Cancel</button>
+              <button onClick={deleteItem}
+                className="flex-1 py-3 rounded-2xl text-sm font-semibold text-white"
+                style={{ background: '#c62828' }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
