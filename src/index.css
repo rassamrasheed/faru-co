@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+html, body { overflow-x: hidden; }
+
 .font-display { font-family: 'Fraunces', serif; font-optical-sizing: auto; }
 .font-display-italic { font-family: 'Fraunces', serif; font-style: italic; }
 .grain { background-image: radial-gradient(rgba(12,52,65,0.04) 1px, transparent 1px); background-size: 4px 4px; }
@@ -33,3 +35,10 @@ input[type=range]::-moz-range-thumb {
   cursor: pointer;
   border: none;
 }
+
+/* Hide scrollbar on mobile carousels */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Safe area padding for iPhone notch/home indicator */
+.pb-safe { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }

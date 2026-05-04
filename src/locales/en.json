@@ -1,0 +1,157 @@
+{
+  "nav": {
+    "tagline": "Maldives, designed by you",
+    "destinations": "Destinations",
+    "journal": "Journal",
+    "contact": "Contact",
+    "startOver": "Start over"
+  },
+  "hero": {
+    "badge": "Build your own escape",
+    "h1a": "Life's too short for",
+    "h1b": "ordinary",
+    "h1c": "vacations.",
+    "sub": "Pick your islands, stack your nights, collect the moments you'll never stop talking about.",
+    "location": "Based in Malé · 1,192 islands"
+  },
+  "steps": {
+    "label": "Step {{n}} of 5",
+    "style": "Style",
+    "dates": "Dates",
+    "stay": "Stay",
+    "itinerary": "Itinerary",
+    "experiences": "Experiences"
+  },
+  "s1": {
+    "heading": "How do you want to wake up?",
+    "sub": "Two very different mornings. Both absolutely perfect.",
+    "keepGoing": "Keep going",
+    "divider": "Or start here ↓",
+    "popularBadge": "Popular escapes ✦",
+    "curatedHeading": "Start with a curated trip",
+    "curatedSub": "Pre-filled & ready to tweak",
+    "startTrip": "Start this trip",
+    "start": "Start",
+    "fromPerNight": "from",
+    "perNight": "/night"
+  },
+  "pkg": {
+    "local_name": "Local Island",
+    "local_tagline": "Live like a Maldivian",
+    "local_desc": "Family-run guesthouses on real, breathing islands. Authentic food, warm people, and zero pretension.",
+    "resort_name": "Private Resort",
+    "resort_tagline": "Your own slice of paradise",
+    "resort_desc": "One island. One resort. Overwater villas, sunrise yoga, and a butler who knows your name."
+  },
+  "fp": {
+    "honeymoon_name": "Honeymoon Escape",
+    "honeymoon_tagline": "For the chapter that changes everything.",
+    "honeymoon_badge": "Most popular",
+    "adventure_name": "Wild Blue Adventure",
+    "adventure_tagline": "Whale sharks won't find themselves.",
+    "adventure_badge": "Best for divers",
+    "family_name": "Family Paradise",
+    "family_tagline": "The trip they'll talk about forever.",
+    "family_badge": "Family friendly",
+    "surf_name": "Surf & Soul",
+    "surf_tagline": "Just you, the board, and perfect left-handers.",
+    "surf_badge": "Solo escape"
+  },
+  "hl": {
+    "nights": "nights",
+    "night": "night",
+    "privateResort": "Private resort",
+    "localIslands": "Local islands",
+    "localIsland": "Local island",
+    "atolls": "atolls",
+    "atoll": "atoll",
+    "guests": "guests",
+    "solo": "Solo"
+  },
+  "s2": {
+    "heading": "When are you going?",
+    "subMobile": "Dry (Nov–Apr): calm & sunny · Wet (May–Oct): wilder, mantas, fewer crowds",
+    "subDesktop": "Dry season (Nov—Apr) = calm seas and blazing skies. Wet season (May—Oct) = fewer crowds, manta rays, and moody magic.",
+    "travelMonth": "Travel month",
+    "dry": "Dry & sunny",
+    "wet": "Wet & wild",
+    "nights": "Nights",
+    "travelers": "Travelers",
+    "minNights": "2 nights",
+    "maxNights": "21 nights"
+  },
+  "s3": {
+    "heading": "Where do you want to stay?",
+    "subMobile": "Pick properties for your {{nights}}-night trip",
+    "subDesktop": "Browse and pick your properties — each one is a different world. Mix and match across islands.",
+    "tooMany": "You've picked {{selected}} properties but only have {{nights}} nights. Deselect one, or go back and add more nights."
+  },
+  "s4": {
+    "heading": "How long at each island?",
+    "splitEvenly": "Split evenly",
+    "subMobile": "{{nights}} nights · {{count}} {{islandWord}} · drag to rebalance",
+    "subDesktop": "Move fast or linger slow — {{nights}} nights, {{count}} {{islandWord}}. Your call.",
+    "island": "island",
+    "islands": "islands",
+    "allocated": "Nights allocated",
+    "transfer": "transfer"
+  },
+  "s5": {
+    "heading": "What memories are you collecting?",
+    "sub": "Sunrise dives, manta rays at dusk, a private dinner on the sand — showing everything available in",
+    "days": "Days",
+    "night": "night",
+    "nights": "nights",
+    "maxActivity": "Max {{n}} activity",
+    "maxActivities": "Max {{n}} activities",
+    "outOfSeason": "{{n}} experience{{s}} out of season in {{month}}",
+    "season": "Season:",
+    "shareTitle": "Your escape is ready",
+    "shareBtn": "Share my trip",
+    "makeItHappen": "Make it happen",
+    "inclGST": "incl. GST"
+  },
+  "sidebar": {
+    "title": "Your escape ✦",
+    "empty": "Pick a style of stay to see your trip take shape.",
+    "itinerary": "Itinerary",
+    "stay": "Stay",
+    "transfers": "Transfers",
+    "experiences": "Experiences",
+    "gst": "GST (16%)",
+    "total": "Total incl. GST",
+    "disclaimer": "Excludes international flights. Final quote confirmed within 24 hours.",
+    "makeItHappen": "Make it happen"
+  },
+  "bar": {
+    "estTotal": "Est. total · incl. GST",
+    "keepGoing": "Keep going",
+    "back": "Back",
+    "makeItHappen": "Make it happen"
+  },
+  "modal": {
+    "badge": "Almost there ✦",
+    "heading": "Let's make this real",
+    "successHeading": "You're on your way!",
+    "successBody": "We'll confirm your trip and send a final quote within 24 hours. Get excited — this is going to be amazing.",
+    "reference": "Reference:",
+    "referenceNote": "Keep this reference for all future correspondence.",
+    "backToTrip": "Back to my trip",
+    "inclGST": "incl. 16% GST",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "email": "Email address",
+    "phone": "Phone / WhatsApp",
+    "specialRequests": "Special requests",
+    "optional": "(optional)",
+    "submitBtn": "Send my booking request",
+    "noPayment": "No payment now. We confirm availability and send a final quote within 24 hours."
+  },
+  "errors": {
+    "pickStyle": "Pick a style of stay to keep going.",
+    "pickMonth": "Choose a travel month to continue.",
+    "pickIsland": "Pick at least one island.",
+    "tooManyIslands": "{{selected}} islands but only {{nights}} nights — deselect one or add more nights.",
+    "assignNights": "Assign all {{nights}} nights — {{diff}} night{{s}} still floating."
+  }
+}

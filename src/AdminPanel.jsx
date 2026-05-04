@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { db, auth } from './firebase';
 import {
-  collection, addDoc, updateDoc, doc, query, orderBy,
+  collection, addDoc, setDoc, updateDoc, doc, getDocs, query, orderBy,
   onSnapshot, writeBatch, Timestamp, deleteDoc, increment,
 } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
@@ -379,15 +379,21 @@ export default function AdminPanel({ onBack }) {
   const [pkgEdit, setPkgEdit]           = useState(null);
   const [pkgSaving, setPkgSaving]       = useState(false);
 
-  const [catalogView, setCatalogView]   = useState('islands');
+  const [properties, setProperties]     = useState([]);
+  const [experiences, setExperiences]   = useState([]);
+  const [catalogView, setCatalogView]   = useState('resort');
   const [addIslandOpen, setAddIslandOpen]     = useState(false);
-  const [addActivityOpen, setAddActivityOpen] = useState(false);
+  const [addPropertyOpen, setAddPropertyOpen] = useState(false);
+  const [addExpOpen, setAddExpOpen]           = useState(null); // propertyId | null
+  const [expandedPropExp, setExpandedPropExp] = useState(new Set());
   const [deleteConfirm, setDeleteConfirm]     = useState(null); // { type, id, name }
-  const BLANK_ISLAND = { name:'', atoll:'', zone:'', note:'', tags:'', packageType:'local', basePerNight:80, image:'/images/local-island.png', active:true };
-  const BLANK_ACTIVITY = { name:'', iconName:'Fish', duration:'', defaultPrice:50, availableAt:'*', activeMonths:[1,2,3,4,5,6,7,8,9,10,11,12], active:true };
-  const BLANK_PKG = { name:'', tagline:'', badge:'', badgeColor:'#f4845f', accentColor:'#c97b4e', packageType:'local', nights:7, guests:2, month:1, islands:[], highlights:['','',''], image:'/images/honeymoon.png', active:true };
+  const BLANK_ISLAND    = { name:'', atoll:'', zone:'', note:'', tags:'', packageType:'local', basePerNight:80, image:'/images/local-island.png', active:true };
+  const BLANK_PROPERTY  = { name:'', islandName:'', atoll:'', pricePerNight:100, tags:[], note:'', packageType:'resort', active:true };
+  const BLANK_EXP       = { name:'', iconName:'Fish', duration:'', defaultPrice:50, activeMonths:[1,2,3,4,5,6,7,8,9,10,11,12], active:true };
+  const BLANK_PKG       = { name:'', tagline:'', badge:'', badgeColor:'#f4845f', accentColor:'#c97b4e', packageType:'local', nights:7, guests:2, month:1, islands:[], highlights:['','',''], image:'/images/honeymoon.png', active:true };
   const [newIsland, setNewIsland]       = useState(BLANK_ISLAND);
-  const [newActivity, setNewActivity]   = useState(BLANK_ACTIVITY);
+  const [newProperty, setNewProperty]   = useState(BLANK_PROPERTY);
+  const [newExp, setNewExp]             = useState(BLANK_EXP);
   const [addSaving, setAddSaving]       = useState(false);
   const [pkgModal, setPkgModal]         = useState(null); // null | { mode:'create'|'edit', data:{...} }
   const [pkgModalSaving, setPkgModalSaving] = useState(false);
@@ -420,7 +426,11 @@ export default function AdminPanel({ onBack }) {
       d => { if (d.exists()) { const data = d.data(); setSettings(data); setSettingsForm(f => f ?? data); } });
     const u7 = onSnapshot(query(collection(db, 'admins'), orderBy('createdAt', 'asc')),
       s => setAdminUsers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); };
+    const u8 = onSnapshot(query(collection(db, 'properties'), orderBy('sortOrder')),
+      s => setProperties(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const u9 = onSnapshot(query(collection(db, 'experiences'), orderBy('sortOrder')),
+      s => setExperiences(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); u8(); u9(); };
   }, [authUser]);
 
   /* derived stats */
@@ -486,6 +496,22 @@ export default function AdminPanel({ onBack }) {
       await seedAllCollections();
       setSeedDone(true); setTab('bookings');
     } catch (e) { alert('Seed failed: ' + e.message); }
+    finally { setSeeding(false); }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!window.confirm('Delete ALL data from Firestore? This cannot be undone.')) return;
+    setSeeding(true);
+    try {
+      const colls = ['bookings','contacts','islands','activities','curatedPackages','properties','experiences'];
+      for (const coll of colls) {
+        const snap = await getDocs(collection(db, coll));
+        const b = writeBatch(db);
+        snap.docs.forEach(d => b.delete(d.ref));
+        if (snap.docs.length) await b.commit();
+      }
+      setSeedDone(false);
+    } catch (e) { alert('Delete failed: ' + e.message); }
     finally { setSeeding(false); }
   };
 
@@ -653,29 +679,6 @@ export default function AdminPanel({ onBack }) {
     finally { setAddSaving(false); }
   };
 
-  const addActivity = async () => {
-    if (!newActivity.name.trim()) return;
-    setAddSaving(true);
-    try {
-      const id = slugify(newActivity.name);
-      const batch = writeBatch(db);
-      batch.set(doc(db, 'activities', id), {
-        id, name: newActivity.name.trim(),
-        iconName: newActivity.iconName,
-        duration: newActivity.duration.trim(),
-        defaultPrice: parseFloat(newActivity.defaultPrice) || 50,
-        availableAt: newActivity.availableAt === '*' ? '*' : newActivity.availableAt,
-        activeMonths: newActivity.activeMonths,
-        prices: {},
-        active: true,
-        sortOrder: activities.length + 1,
-      });
-      await batch.commit();
-      setNewActivity(BLANK_ACTIVITY);
-      setAddActivityOpen(false);
-    } catch(e) { alert('Error: ' + e.message); }
-    finally { setAddSaving(false); }
-  };
 
   const deleteItem = async () => {
     if (!deleteConfirm) return;
@@ -683,6 +686,60 @@ export default function AdminPanel({ onBack }) {
       await deleteDoc(doc(db, deleteConfirm.type, deleteConfirm.id));
     } catch(e) { alert('Error: ' + e.message); }
     finally { setDeleteConfirm(null); }
+  };
+
+  const updateProperty = async (id, field, val) => {
+    await updateDoc(doc(db, 'properties', id), { [field]: val });
+  };
+
+  const addProperty = async () => {
+    if (!newProperty.name.trim() || !newProperty.islandName.trim()) return;
+    setAddSaving(true);
+    try {
+      const id = slugify(newProperty.name);
+      await setDoc(doc(db, 'properties', id), {
+        id,
+        name: newProperty.name.trim(),
+        islandName: newProperty.islandName.trim(),
+        atoll: newProperty.atoll.trim(),
+        pricePerNight: parseFloat(newProperty.pricePerNight) || 100,
+        tags: Array.isArray(newProperty.tags) ? newProperty.tags : [],
+        note: newProperty.note.trim(),
+        packageType: newProperty.packageType,
+        active: true,
+        sortOrder: properties.length + 1,
+      });
+      setNewProperty({ ...BLANK_PROPERTY, packageType: catalogView === 'guesthouse' ? 'local' : 'resort' });
+      setAddPropertyOpen(false);
+    } catch(e) { alert('Error: ' + e.message); }
+    finally { setAddSaving(false); }
+  };
+
+  const updateExperience = async (id, field, val) => {
+    await updateDoc(doc(db, 'experiences', id), { [field]: val });
+  };
+
+  const addExperience = async () => {
+    if (!newExp.name.trim() || !addExpOpen) return;
+    setAddSaving(true);
+    try {
+      const id = slugify(newExp.name) + '-' + addExpOpen.slice(0, 8);
+      const b = writeBatch(db);
+      const propExps = experiences.filter(e => e.propertyId === addExpOpen);
+      b.set(doc(db, 'experiences', id), {
+        id, propertyId: addExpOpen,
+        name: newExp.name.trim(),
+        iconName: newExp.iconName,
+        duration: newExp.duration.trim(),
+        defaultPrice: parseFloat(newExp.defaultPrice) || 50,
+        activeMonths: newExp.activeMonths,
+        active: true, sortOrder: propExps.length + 1,
+      });
+      await b.commit();
+      setNewExp(BLANK_EXP);
+      setAddExpOpen(null);
+    } catch(e) { alert('Error: ' + e.message); }
+    finally { setAddSaving(false); }
   };
 
   /* ── loading ── */
@@ -701,7 +758,7 @@ export default function AdminPanel({ onBack }) {
             <Waves className="w-5 h-5 text-white" />
           </div>
           <div className="font-display text-2xl" style={{ color: C.navy }}>Admin Panel</div>
-          <div className="text-xs tracking-[0.2em] uppercase mt-1" style={{ color: C.textLight }}>Faru & Co · Maldives</div>
+          <div className="text-xs tracking-[0.2em] uppercase mt-1" style={{ color: C.textLight }}>Wave Voyages · Maldives</div>
         </div>
         <form onSubmit={login} className="rounded-3xl p-8" style={{ background: 'white', boxShadow: '0 8px 40px rgba(12,52,65,0.12)' }}>
           {[
@@ -734,7 +791,7 @@ export default function AdminPanel({ onBack }) {
     ['overview',  'Overview',  LayoutDashboard],
     ['bookings',  'Bookings',  BookOpen],
     ['messages',  'Messages',  MessageSquare],
-    ['catalog',   'Catalog',   Grid],
+    ['catalog',   'Properties', Grid],
     ['packages',  'Packages',  Package],
     ['settings',  'Settings',  Settings],
   ];
@@ -751,7 +808,7 @@ export default function AdminPanel({ onBack }) {
               <Waves className="w-4 h-4 text-white" />
             </div>
             <div>
-              <div className="font-display text-lg leading-none" style={{ color: C.navy }}>Faru & Co</div>
+              <div className="font-display text-lg leading-none" style={{ color: C.navy }}>Wave Voyages</div>
               <div className="text-[9px] tracking-[0.25em] uppercase" style={{ color: C.coral }}>Admin</div>
             </div>
           </div>
@@ -802,12 +859,20 @@ export default function AdminPanel({ onBack }) {
               <div>
                 <h1 className="font-display text-2xl" style={{ color: C.navy }}>Overview</h1>
               </div>
-              <button onClick={handleSeed} disabled={seeding || seedDone}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold border transition-all disabled:opacity-50"
-                style={{ borderColor: C.border, color: seedDone ? C.teal : C.textMid, background: 'white' }}>
-                <Database className="w-3.5 h-3.5" />
-                {seeding ? 'Loading…' : seedDone ? 'Demo data loaded ✓' : 'Load demo data'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={handleSeed} disabled={seeding || seedDone}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold border transition-all disabled:opacity-50"
+                  style={{ borderColor: C.border, color: seedDone ? C.teal : C.textMid, background: 'white' }}>
+                  <Database className="w-3.5 h-3.5" />
+                  {seeding ? 'Loading…' : seedDone ? 'Demo data loaded ✓' : 'Load demo data'}
+                </button>
+                <button onClick={handleDeleteAll} disabled={seeding}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold border transition-all disabled:opacity-50 hover:border-red-300 hover:text-red-600 hover:bg-red-50"
+                  style={{ borderColor: C.border, color: C.textMid, background: 'white' }}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete all data
+                </button>
+              </div>
             </div>
 
             {/* Stat cards */}
@@ -1202,194 +1267,329 @@ export default function AdminPanel({ onBack }) {
           <div>
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h1 className="font-display text-2xl" style={{ color: C.navy }}>Catalog</h1>
-                <p className="text-sm" style={{ color: C.textLight }}>Edit island prices and activity pricing per island</p>
+                <h1 className="font-display text-2xl" style={{ color: C.navy }}>Properties</h1>
+                <p className="text-sm" style={{ color: C.textLight }}>
+                  {catalogView === 'resort'
+                    ? `${properties.filter(p => p.packageType === 'resort').length} resorts`
+                    : `${properties.filter(p => p.packageType === 'local').length} guesthouses`}
+                  {' · '}{experiences.length} experiences
+                </p>
               </div>
-              <div className="flex gap-1.5 bg-gray-100 p-1 rounded-xl">
-                {[['islands','Islands'],['activities','Activities'],['matrix','Price Matrix']].map(([v,l]) => (
-                  <button key={v} onClick={() => setCatalogView(v)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                    style={{ background: catalogView === v ? 'white' : 'transparent', color: catalogView === v ? C.navy : C.textLight, boxShadow: catalogView === v ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}>
-                    {l}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setNewProperty({ ...BLANK_PROPERTY, packageType: catalogView === 'guesthouse' ? 'local' : 'resort' }); setAddPropertyOpen(true); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white transition-all hover:scale-105"
+                  style={{ background: C.navy }}>
+                  <Plus className="w-3.5 h-3.5" /> Add Property
+                </button>
+                <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+                  {[['resort','Resorts'],['guesthouse','Guesthouses']].map(([v,l]) => (
+                    <button key={v} onClick={() => setCatalogView(v)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                      style={{ background: catalogView === v ? 'white' : 'transparent', color: catalogView === v ? C.navy : C.textLight, boxShadow: catalogView === v ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            {/* Islands table */}
-            {catalogView === 'islands' && (
-              <div className="rounded-2xl overflow-hidden" style={{ background: 'white', border: `1px solid ${C.border}` }}>
-                <div className="px-5 py-3.5 border-b flex items-center justify-between" style={{ borderColor: C.borderFaint }}>
-                  <div className="text-xs uppercase tracking-wider font-bold" style={{ color: C.textLight }}>
-                    Islands — click price to edit, saves instantly
-                  </div>
-                  <button onClick={() => setAddIslandOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white transition-all hover:scale-105"
-                    style={{ background: C.navy }}>
-                    <Plus className="w-3.5 h-3.5" /> Add Island
-                  </button>
-                </div>
-                {islands.length === 0 && (
-                  <div className="text-center py-10 text-sm" style={{ color: C.textLight }}>
-                    No islands yet. Load demo data from Overview or add one.
-                  </div>
-                )}
-                <div className="divide-y" style={{ borderColor: C.borderFaint }}>
-                  {['local','resort'].map(type => (
-                    <div key={type}>
-                      <div className="px-5 py-2 text-[10px] uppercase tracking-wider font-bold" style={{ color: C.textLight, background: C.sand }}>
-                        {type === 'local' ? 'Local Islands' : 'Resort Atolls'}
-                      </div>
-                      {islands.filter(i => i.packageType === type).map(island => (
-                        <div key={island.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors group">
+            {/* ── Properties list (filtered by tab) ── */}
+            {(() => {
+              const typeFilter = catalogView === 'guesthouse' ? 'local' : 'resort';
+              const filtered   = properties.filter(p => p.packageType === typeFilter);
+              return (
+                <div className="rounded-2xl overflow-hidden" style={{ background: 'white', border: `1px solid ${C.border}` }}>
+                  {filtered.length === 0 && (
+                    <div className="text-center py-14 text-sm" style={{ color: C.textLight }}>
+                      No {catalogView === 'guesthouse' ? 'guesthouses' : 'resorts'} yet. Click "Add Property" to get started.
+                    </div>
+                  )}
+                  {filtered.map((prop, pi) => {
+                    const propExps   = experiences.filter(e => e.propertyId === prop.id);
+                    const isExpanded = expandedPropExp.has(prop.id);
+                    const toggleExp  = () => setExpandedPropExp(prev => {
+                      const s = new Set(prev);
+                      isExpanded ? s.delete(prop.id) : s.add(prop.id);
+                      return s;
+                    });
+                    return (
+                      <div key={prop.id} style={{ borderTop: pi > 0 ? `1px solid ${C.borderFaint}` : 'none' }}>
+                        <div className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors group">
+                          <button onClick={toggleExp}
+                            className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-colors hover:bg-gray-200"
+                            style={{ color: C.textLight }}>
+                            <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                          </button>
                           <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-sm" style={{ color: C.navy }}>{island.name}</div>
-                            <div className="text-xs" style={{ color: C.textLight }}>{island.atoll}</div>
+                            <div className="font-semibold text-sm" style={{ color: C.navy }}>{prop.name}</div>
+                            <div className="text-xs mt-0.5" style={{ color: C.textLight }}>
+                              {prop.islandName ?? prop.islandId}{prop.atoll ? ` · ${prop.atoll}` : ''}
+                              {prop.note ? ` · ${prop.note}` : ''}
+                            </div>
                           </div>
-                          <div className="text-xs hidden md:block truncate max-w-[200px]" style={{ color: C.textMid }}>{island.note}</div>
-                          <div className="flex items-center gap-4 shrink-0">
-                            <div className="text-right">
-                              <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: C.textLight }}>Per Night</div>
-                              <InlineInput value={island.basePerNight} onSave={val => updateIsland(island.id, 'basePerNight', val)} />
+                          <div className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0"
+                            style={{ background: C.cream, color: C.textMid }}>
+                            {propExps.length} exp
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <div className="text-right hidden sm:block">
+                              <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: C.textLight }}>$/night</div>
+                              <InlineInput value={prop.pricePerNight} onSave={val => updateProperty(prop.id, 'pricePerNight', val)} />
                             </div>
-                            <div className="text-right">
-                              <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: C.textLight }}>Active</div>
-                              <button onClick={() => updateIsland(island.id, 'active', !island.active)}
-                                className="w-10 h-6 rounded-full transition-all flex items-center"
-                                style={{ background: island.active ? C.teal : C.border, padding: '2px' }}>
-                                <div className="w-5 h-5 rounded-full bg-white shadow transition-transform"
-                                  style={{ transform: island.active ? 'translateX(16px)' : 'translateX(0)' }} />
-                              </button>
-                            </div>
-                            <button onClick={() => setDeleteConfirm({ type: 'islands', id: island.id, name: island.name })}
-                              className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                            <button onClick={() => updateProperty(prop.id, 'active', !prop.active)}
+                              className="w-10 h-6 rounded-full transition-all flex items-center shrink-0"
+                              style={{ background: prop.active ? C.teal : C.border, padding: '2px' }}>
+                              <div className="w-5 h-5 rounded-full bg-white shadow transition-transform"
+                                style={{ transform: prop.active ? 'translateX(16px)' : 'translateX(0)' }} />
+                            </button>
+                            <button onClick={() => setDeleteConfirm({ type: 'properties', id: prop.id, name: prop.name })}
+                              className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-full flex items-center justify-center transition-all"
                               style={{ background: '#fce4ec', color: '#c62828' }}>
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
-            {/* Activities list */}
-            {catalogView === 'activities' && (
-              <div className="rounded-2xl overflow-hidden" style={{ background: 'white', border: `1px solid ${C.border}` }}>
-                <div className="px-5 py-3.5 border-b flex items-center justify-between" style={{ borderColor: C.borderFaint }}>
-                  <div className="text-xs uppercase tracking-wider font-bold" style={{ color: C.textLight }}>
-                    Activities — default price used when no island-specific price is set
-                  </div>
-                  <button onClick={() => setAddActivityOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white transition-all hover:scale-105"
-                    style={{ background: C.navy }}>
-                    <Plus className="w-3.5 h-3.5" /> Add Activity
-                  </button>
+                        {/* Inline experiences */}
+                        {isExpanded && (
+                          <div className="border-t px-4 pb-4 pt-3" style={{ borderColor: C.borderFaint, background: C.sand }}>
+                            {propExps.length === 0 && (
+                              <p className="text-xs mb-3" style={{ color: C.textLight }}>No experiences yet. Add the first one below.</p>
+                            )}
+                            {propExps.length > 0 && (
+                              <div className="space-y-2 mb-3">
+                                {propExps.map(exp => (
+                                  <div key={exp.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl group/exp"
+                                    style={{ background: 'white', border: `1px solid ${C.border}` }}>
+                                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                                      style={{ background: C.navy }}>
+                                      <span className="text-[10px] text-white font-bold">{exp.iconName?.[0] ?? '✦'}</span>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-semibold" style={{ color: C.navy }}>{exp.name}</div>
+                                      <div className="text-xs" style={{ color: C.textLight }}>
+                                        ${exp.defaultPrice} pp · {exp.duration}
+                                        {exp.activeMonths?.length < 12 ? ` · ${exp.activeMonths.length} months` : ' · All year'}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <InlineInput value={exp.defaultPrice} onSave={val => updateExperience(exp.id, 'defaultPrice', val)} />
+                                      <button onClick={() => updateExperience(exp.id, 'active', !exp.active)}
+                                        className="w-8 h-5 rounded-full transition-all flex items-center shrink-0"
+                                        style={{ background: exp.active ? C.teal : C.border, padding: '2px' }}>
+                                        <div className="w-4 h-4 rounded-full bg-white shadow transition-transform"
+                                          style={{ transform: exp.active ? 'translateX(12px)' : 'translateX(0)' }} />
+                                      </button>
+                                      <button onClick={() => setDeleteConfirm({ type: 'experiences', id: exp.id, name: exp.name })}
+                                        className="opacity-0 group-hover/exp:opacity-100 w-6 h-6 rounded-full flex items-center justify-center transition-all"
+                                        style={{ background: '#fce4ec', color: '#c62828' }}>
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <button onClick={() => { setNewExp(BLANK_EXP); setAddExpOpen(prop.id); }}
+                              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed text-xs font-semibold transition-all hover:border-solid"
+                              style={{ borderColor: C.coral, color: C.coral }}>
+                              <Plus className="w-3.5 h-3.5" /> Add Experience
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-                {activities.length === 0 && (
-                  <div className="text-center py-10 text-sm" style={{ color: C.textLight }}>
-                    No activities yet. Load demo data from Overview or add one.
-                  </div>
-                )}
-                <div className="divide-y" style={{ borderColor: C.borderFaint }}>
-                  {activities.map(act => (
-                    <div key={act.id} className="flex items-center gap-4 px-5 py-4 group hover:bg-gray-50 transition-colors">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm" style={{ color: C.navy }}>{act.name}</div>
-                        <div className="text-xs mt-0.5" style={{ color: C.textLight }}>
-                          {act.duration}{act.duration ? ' · ' : ''}Available at: {act.availableAt === '*' ? 'All islands' : (Array.isArray(act.availableAt) ? act.availableAt.join(', ') : act.availableAt)}
+              );
+            })()}
+
+            {/* ── Add Property Modal ── */}
+            {addPropertyOpen && (() => {
+              const PRESET_TAGS = catalogView === 'guesthouse'
+                ? ['Beachfront','Pool','Budget','Boutique','Surf','Diving','Snorkeling','Quiet','Convenient','Local Feel','Family-friendly','Romantic','House Reef']
+                : ['Overwater','Beachfront','Pool','Spa','Diving','Snorkeling','Whale Sharks','Mantas','Romantic','Adults-only','Family-friendly','Boutique','House Reef','All-inclusive'];
+              const toggleTag = tag => setNewProperty(p => ({
+                ...p,
+                tags: p.tags.includes(tag) ? p.tags.filter(t => t !== tag) : [...p.tags, tag],
+              }));
+              return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+                  <div className="w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden" style={{ background: 'white', maxHeight: '92vh', overflowY: 'auto' }}>
+
+                    {/* Header */}
+                    <div className="px-6 py-5 border-b flex items-center justify-between" style={{ borderColor: C.borderFaint }}>
+                      <div>
+                        <h3 className="font-display text-xl" style={{ color: C.navy }}>Add Property</h3>
+                        <p className="text-xs mt-0.5" style={{ color: C.textLight }}>Fill in all the details for this property</p>
+                      </div>
+                      <button onClick={() => setAddPropertyOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100"><X className="w-4 h-4" /></button>
+                    </div>
+
+                    <div className="px-6 py-5 space-y-5">
+
+                      {/* Type */}
+                      <div>
+                        <label className="block text-[10px] uppercase tracking-widest font-bold mb-2" style={{ color: C.textLight }}>Property Type</label>
+                        <div className="grid grid-cols-2 gap-3">
+                          {[
+                            { v: 'resort', label: 'Resort', sub: 'Private island, own world', emoji: '🏝️' },
+                            { v: 'local',  label: 'Guesthouse', sub: 'Local island, shared destination', emoji: '🏡' },
+                          ].map(({ v, label, sub, emoji }) => {
+                            const sel = newProperty.packageType === v;
+                            return (
+                              <button key={v} type="button"
+                                onClick={() => setNewProperty(p => ({ ...p, packageType: v }))}
+                                className="flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all"
+                                style={{ borderColor: sel ? C.navy : C.border, background: sel ? C.navy : 'white' }}>
+                                <span className="text-xl shrink-0">{emoji}</span>
+                                <div>
+                                  <div className="font-semibold text-sm" style={{ color: sel ? 'white' : C.navy }}>{label}</div>
+                                  <div className="text-[10px] leading-snug mt-0.5" style={{ color: sel ? 'rgba(255,255,255,0.6)' : C.textLight }}>{sub}</div>
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
-                      <div className="flex items-center gap-5 shrink-0">
-                        <div className="text-right">
-                          <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: C.textLight }}>Default $</div>
-                          <InlineInput value={act.defaultPrice} onSave={val => updateActivityDefault(act.id, val)} />
+
+                      {/* Identity */}
+                      <div>
+                        <label className="block text-[10px] uppercase tracking-widest font-bold mb-2" style={{ color: C.textLight }}>Property Details</label>
+                        <div className="space-y-2.5">
+                          <input className="w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none transition-colors focus:border-current"
+                            style={{ borderColor: C.border, color: C.navy, fontFamily: 'inherit' }}
+                            placeholder="Property name *  (e.g. Four Seasons Landaa Giraavaru)"
+                            value={newProperty.name} onChange={e => setNewProperty(p => ({ ...p, name: e.target.value }))} />
+                          <div className="grid grid-cols-2 gap-2.5">
+                            <input className="px-3.5 py-2.5 rounded-xl border text-sm outline-none"
+                              style={{ borderColor: C.border, color: C.navy, fontFamily: 'inherit' }}
+                              placeholder={newProperty.packageType === 'resort' ? 'Island name *' : 'Island name *  (e.g. Maafushi)'}
+                              value={newProperty.islandName} onChange={e => setNewProperty(p => ({ ...p, islandName: e.target.value }))} />
+                            <input className="px-3.5 py-2.5 rounded-xl border text-sm outline-none"
+                              style={{ borderColor: C.border, color: C.navy, fontFamily: 'inherit' }}
+                              placeholder="Atoll  (e.g. Baa Atoll)"
+                              value={newProperty.atoll} onChange={e => setNewProperty(p => ({ ...p, atoll: e.target.value }))} />
+                          </div>
+                          <input className="w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none"
+                            style={{ borderColor: C.border, color: C.navy, fontFamily: 'inherit' }}
+                            placeholder="One-line note for customers  (e.g. Steps from the Cokes break)"
+                            value={newProperty.note} onChange={e => setNewProperty(p => ({ ...p, note: e.target.value }))} />
                         </div>
-                        <div className="text-right">
-                          <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: C.textLight }}>Active</div>
-                          <button onClick={() => toggleActivityActive(act.id, act.active)}
-                            className="w-10 h-6 rounded-full transition-all flex items-center"
-                            style={{ background: act.active ? C.teal : C.border, padding: '2px' }}>
-                            <div className="w-5 h-5 rounded-full bg-white shadow transition-transform"
-                              style={{ transform: act.active ? 'translateX(16px)' : 'translateX(0)' }} />
-                          </button>
+                      </div>
+
+                      {/* Pricing */}
+                      <div>
+                        <label className="block text-[10px] uppercase tracking-widest font-bold mb-2" style={{ color: C.textLight }}>Pricing</label>
+                        <div className="relative">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold" style={{ color: C.textLight }}>$</span>
+                          <input className="w-full pl-7 pr-3.5 py-2.5 rounded-xl border text-sm outline-none"
+                            style={{ borderColor: C.border, color: C.navy, fontFamily: 'inherit' }}
+                            placeholder="Price per night *" type="number" min="0"
+                            value={newProperty.pricePerNight} onChange={e => setNewProperty(p => ({ ...p, pricePerNight: e.target.value }))} />
                         </div>
-                        <button onClick={() => setDeleteConfirm({ type: 'activities', id: act.id, name: act.name })}
-                          className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110"
-                          style={{ background: '#fce4ec', color: '#c62828' }}>
-                          <Trash2 className="w-3.5 h-3.5" />
+                        <p className="text-[10px] mt-1 px-1" style={{ color: C.textLight }}>Per room / villa, per night. You can adjust this anytime.</p>
+                      </div>
+
+                      {/* Tags */}
+                      <div>
+                        <label className="block text-[10px] uppercase tracking-widest font-bold mb-2" style={{ color: C.textLight }}>
+                          Tags · {newProperty.tags.length} selected
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {PRESET_TAGS.map(tag => {
+                            const on = newProperty.tags.includes(tag);
+                            return (
+                              <button key={tag} type="button" onClick={() => toggleTag(tag)}
+                                className="px-2.5 py-1 rounded-full text-xs font-semibold transition-all"
+                                style={{ background: on ? C.navy : C.sand, color: on ? 'white' : C.textMid, border: `1.5px solid ${on ? C.navy : C.border}` }}>
+                                {tag}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-6 py-4 border-t flex gap-3" style={{ borderColor: C.borderFaint }}>
+                      <button onClick={() => setAddPropertyOpen(false)}
+                        className="flex-1 py-2.5 rounded-xl border text-sm font-semibold"
+                        style={{ borderColor: C.border, color: C.textMid }}>Cancel</button>
+                      <button onClick={addProperty} disabled={addSaving || !newProperty.name.trim() || !newProperty.islandName.trim()}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40 transition-all"
+                        style={{ background: C.navy }}>
+                        {addSaving ? 'Saving…' : 'Add Property'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Add Experience Modal ── */}
+            {addExpOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
+                <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl" style={{ background: 'white' }}>
+                  <div className="flex items-center justify-between mb-5">
+                    <div>
+                      <h3 className="font-display text-lg" style={{ color: C.navy }}>Add Experience</h3>
+                      <p className="text-xs" style={{ color: C.textLight }}>{properties.find(p => p.id === addExpOpen)?.name}</p>
+                    </div>
+                    <button onClick={() => setAddExpOpen(null)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100"><X className="w-4 h-4" /></button>
+                  </div>
+                  <div className="space-y-3">
+                    <input className="w-full px-3 py-2 rounded-xl border text-sm outline-none" style={{ borderColor: C.border }}
+                      placeholder="Experience name *" value={newExp.name} onChange={e => setNewExp(x => ({ ...x, name: e.target.value }))} />
+                    <div className="grid grid-cols-2 gap-3">
+                      <select className="px-3 py-2 rounded-xl border text-sm outline-none" style={{ borderColor: C.border }}
+                        value={newExp.iconName} onChange={e => setNewExp(x => ({ ...x, iconName: e.target.value }))}>
+                        {['Fish','Anchor','Sun','Heart','Sparkles','Wind','Flower2','Camera','Utensils','Music','Compass','Waves'].map(ic => (
+                          <option key={ic} value={ic}>{ic}</option>
+                        ))}
+                      </select>
+                      <input className="px-3 py-2 rounded-xl border text-sm outline-none" style={{ borderColor: C.border }}
+                        placeholder="Duration (e.g. 2 hrs)" value={newExp.duration} onChange={e => setNewExp(x => ({ ...x, duration: e.target.value }))} />
+                    </div>
+                    <input className="w-full px-3 py-2 rounded-xl border text-sm outline-none" style={{ borderColor: C.border }}
+                      placeholder="Price per person ($)" type="number" value={newExp.defaultPrice}
+                      onChange={e => setNewExp(x => ({ ...x, defaultPrice: e.target.value }))} />
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-xs font-semibold" style={{ color: C.textLight }}>Available months</div>
+                        <button type="button"
+                          onClick={() => setNewExp(x => ({ ...x, activeMonths: x.activeMonths.length === 12 ? [] : [1,2,3,4,5,6,7,8,9,10,11,12] }))}
+                          className="text-[10px] font-bold px-2.5 py-1 rounded-full transition-all"
+                          style={{ background: newExp.activeMonths.length === 12 ? C.navy : C.sand, color: newExp.activeMonths.length === 12 ? 'white' : C.textMid, border: `1px solid ${newExp.activeMonths.length === 12 ? C.navy : C.border}` }}>
+                          All year
                         </button>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Pricing matrix */}
-            {catalogView === 'matrix' && (
-              <div>
-                <div className="mb-3 text-xs" style={{ color: C.textLight }}>
-                  Click any price to edit. Press Enter or click away to save. Blank = uses default price.
-                </div>
-                {activities.length === 0 || islands.length === 0 ? (
-                  <div className="text-center py-10 rounded-2xl text-sm" style={{ color: C.textLight, background: 'white', border: `1px solid ${C.border}` }}>
-                    Load demo data first to populate the matrix.
-                  </div>
-                ) : (
-                  <div className="rounded-2xl overflow-auto" style={{ background: 'white', border: `1px solid ${C.border}` }}>
-                    <table className="text-xs min-w-max w-full">
-                      <thead>
-                        <tr style={{ borderBottom: `1px solid ${C.borderFaint}`, background: C.sand }}>
-                          <th className="text-left px-4 py-3 font-semibold sticky left-0 z-10 min-w-[150px]" style={{ color: C.navy, background: C.sand }}>Activity</th>
-                          <th className="px-3 py-3 font-semibold text-center whitespace-nowrap" style={{ color: C.textLight }}>Default</th>
-                          {islands.map(isl => (
-                            <th key={isl.id} className="px-3 py-3 font-semibold text-center whitespace-nowrap" style={{ color: C.navy }}>
-                              {isl.name}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {activities.map((act, i) => {
-                          const isAvailableAt = id => act.availableAt === '*' || (Array.isArray(act.availableAt) && act.availableAt.includes(id));
+                      <div className="flex flex-wrap gap-1.5">
+                        {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => {
+                          const n = i + 1;
+                          const active = newExp.activeMonths.includes(n);
                           return (
-                            <tr key={act.id} style={{ borderBottom: i < activities.length - 1 ? `1px solid ${C.borderFaint}` : 'none' }}>
-                              <td className="px-4 py-3 font-semibold sticky left-0 z-10" style={{ color: C.navy, background: 'white' }}>
-                                <div>{act.name}</div>
-                                <div className="text-[10px] font-normal" style={{ color: C.textLight }}>{act.duration}</div>
-                              </td>
-                              <td className="px-3 py-3 text-center" style={{ color: C.textMid }}>
-                                <InlineInput
-                                  value={act.defaultPrice}
-                                  onSave={val => updateActivityDefault(act.id, val)}
-                                />
-                              </td>
-                              {islands.map(isl => {
-                                const avail = isAvailableAt(isl.id);
-                                const price = act.prices?.[isl.id];
-                                return (
-                                  <td key={isl.id} className="px-3 py-3 text-center">
-                                    {avail ? (
-                                      <InlineInput
-                                        value={price ?? act.defaultPrice}
-                                        onSave={val => updateActivityPrice(act.id, isl.id, val)}
-                                      />
-                                    ) : (
-                                      <span className="text-[10px]" style={{ color: C.borderFaint }}>—</span>
-                                    )}
-                                  </td>
-                                );
-                              })}
-                            </tr>
+                            <button key={n} type="button"
+                              onClick={() => setNewExp(x => ({ ...x, activeMonths: active ? x.activeMonths.filter(v => v !== n) : [...x.activeMonths, n] }))}
+                              className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
+                              style={{ background: active ? C.teal : C.sand, color: active ? 'white' : C.textMid, border: `1px solid ${active ? C.teal : C.border}` }}>
+                              {m}
+                            </button>
                           );
                         })}
-                      </tbody>
-                    </table>
+                      </div>
+                    </div>
                   </div>
-                )}
+                  <div className="flex gap-3 mt-5">
+                    <button onClick={() => setAddExpOpen(null)} className="flex-1 py-2.5 rounded-xl border text-sm font-semibold" style={{ borderColor: C.border, color: C.textMid }}>Cancel</button>
+                    <button onClick={addExperience} disabled={addSaving || !newExp.name}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+                      style={{ background: C.coral }}>
+                      {addSaving ? 'Saving…' : 'Add Experience'}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1594,7 +1794,7 @@ export default function AdminPanel({ onBack }) {
                   <div className="font-semibold text-sm mb-4" style={{ color: C.navy }}>Contact Info</div>
                   <div className="space-y-4">
                     {[
-                      ['contactEmail', 'Contact Email', 'email', 'hello@faru.co'],
+                      ['contactEmail', 'Contact Email', 'email', 'hello@wavevoyages.com'],
                       ['whatsapp',     'WhatsApp Number', 'text',  '+960 300 0000'],
                     ].map(([key, label, type, ph]) => (
                       <div key={key}>
@@ -1999,97 +2199,6 @@ export default function AdminPanel({ onBack }) {
         </div>
       )}
 
-      {/* ═══ ADD ACTIVITY MODAL ═══ */}
-      {addActivityOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(12,52,65,0.5)' }}
-          onClick={e => { if (e.target === e.currentTarget) setAddActivityOpen(false); }}>
-          <div className="w-full max-w-md rounded-3xl overflow-hidden shadow-2xl" style={{ background: 'white', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: C.borderFaint }}>
-              <div className="font-display text-lg" style={{ color: C.navy }}>Add Activity</div>
-              <button onClick={() => setAddActivityOpen(false)} style={{ color: C.textLight }}><X className="w-5 h-5" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              {[
-                ['name',     'Activity Name *', 'text',   'e.g. Night Snorkeling'],
-                ['duration', 'Duration',        'text',   'e.g. 2 hours'],
-              ].map(([key, label, type, ph]) => (
-                <div key={key}>
-                  <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>{label}</label>
-                  <input type={type} placeholder={ph} value={newActivity[key] ?? ''}
-                    onChange={e => setNewActivity(p => ({ ...p, [key]: e.target.value }))}
-                    className="w-full px-4 py-2.5 rounded-xl border text-sm"
-                    style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }} />
-                </div>
-              ))}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Default Price ($)</label>
-                  <input type="number" min="0" value={newActivity.defaultPrice}
-                    onChange={e => setNewActivity(p => ({ ...p, defaultPrice: e.target.value }))}
-                    className="w-full px-4 py-2.5 rounded-xl border text-sm"
-                    style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }} />
-                </div>
-                <div>
-                  <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Icon</label>
-                  <select value={newActivity.iconName} onChange={e => setNewActivity(p => ({ ...p, iconName: e.target.value }))}
-                    className="w-full px-4 py-2.5 rounded-xl border text-sm"
-                    style={{ borderColor: C.border, color: C.navy, outline: 'none', fontFamily: 'inherit' }}>
-                    {['Fish','Anchor','Waves','Sparkles','Sun','Heart','Wind','Flower2','Camera','Utensils','Music','Compass'].map(ic => (
-                      <option key={ic} value={ic}>{ic}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs uppercase tracking-wider mb-1.5" style={{ color: C.textLight }}>Available At</label>
-                <div className="flex gap-2 mb-2">
-                  {['*', 'specific'].map(v => (
-                    <button key={v} type="button"
-                      onClick={() => setNewActivity(p => ({ ...p, availableAt: v === '*' ? '*' : [] }))}
-                      className="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all"
-                      style={{ background: (newActivity.availableAt === '*') === (v === '*') ? C.navy : 'white', color: (newActivity.availableAt === '*') === (v === '*') ? 'white' : C.textMid, borderColor: C.border }}>
-                      {v === '*' ? 'All islands' : 'Specific islands'}
-                    </button>
-                  ))}
-                </div>
-                {newActivity.availableAt !== '*' && (
-                  <div className="flex flex-wrap gap-1.5 p-3 rounded-xl border" style={{ borderColor: C.border }}>
-                    {islands.map(isl => {
-                      const selected = Array.isArray(newActivity.availableAt) && newActivity.availableAt.includes(isl.id);
-                      return (
-                        <button key={isl.id} type="button"
-                          onClick={() => setNewActivity(p => ({
-                            ...p,
-                            availableAt: selected
-                              ? p.availableAt.filter(i => i !== isl.id)
-                              : [...(Array.isArray(p.availableAt) ? p.availableAt : []), isl.id]
-                          }))}
-                          className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
-                          style={{ background: selected ? C.teal : C.sand, color: selected ? 'white' : C.textMid }}>
-                          {isl.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => setAddActivityOpen(false)}
-                  className="flex-1 py-3 rounded-2xl text-sm font-semibold border"
-                  style={{ borderColor: C.border, color: C.textMid }}>Cancel</button>
-                <button onClick={addActivity} disabled={addSaving || !newActivity.name.trim()}
-                  className="flex-1 py-3 rounded-2xl text-sm font-semibold text-white disabled:opacity-50 transition-all"
-                  style={{ background: C.navy }}>
-                  {addSaving ? 'Adding…' : 'Add Activity'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ═══ DELETE CONFIRM ═══ */}
       {deleteConfirm && (
@@ -2100,7 +2209,7 @@ export default function AdminPanel({ onBack }) {
             </div>
             <div className="font-display text-xl mb-2" style={{ color: C.navy }}>Remove {deleteConfirm.name}?</div>
             <p className="text-sm mb-6" style={{ color: C.textLight }}>
-              This will permanently delete this {deleteConfirm.type === 'islands' ? 'island' : 'activity'} from the catalog. Existing bookings won't be affected.
+              This will permanently delete this {deleteConfirm.type === 'islands' ? 'island' : deleteConfirm.type === 'experiences' ? 'experience' : 'property'} from the catalog. Existing bookings won't be affected.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteConfirm(null)}

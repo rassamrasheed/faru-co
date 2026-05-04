@@ -1,0 +1,157 @@
+{
+  "nav": {
+    "tagline": "马尔代夫，由您亲手设计",
+    "destinations": "目的地",
+    "journal": "旅行日志",
+    "contact": "联系我们",
+    "startOver": "重新开始"
+  },
+  "hero": {
+    "badge": "打造您的专属度假",
+    "h1a": "人生苦短，",
+    "h1b": "何必平凡",
+    "h1c": "度假。",
+    "sub": "选择您的岛屿，安排您的夜晚，收集那些令您念念不忘的美好时刻。",
+    "location": "总部位于马累 · 1,192座岛屿"
+  },
+  "steps": {
+    "label": "第 {{n}} 步，共 5 步",
+    "style": "风格",
+    "dates": "日期",
+    "stay": "住宿",
+    "itinerary": "行程",
+    "experiences": "体验"
+  },
+  "s1": {
+    "heading": "您想以什么方式醒来？",
+    "sub": "两种截然不同的清晨，都无与伦比地完美。",
+    "keepGoing": "继续",
+    "divider": "或从这里开始 ↓",
+    "popularBadge": "热门行程 ✦",
+    "curatedHeading": "选择精心策划的旅行",
+    "curatedSub": "预填信息，随时可调整",
+    "startTrip": "开始这次旅行",
+    "start": "出发",
+    "fromPerNight": "起",
+    "perNight": "/晚"
+  },
+  "pkg": {
+    "local_name": "本地岛屿",
+    "local_tagline": "像马尔代夫人一样生活",
+    "local_desc": "家庭经营的民宿，真实的岛屿生活。地道的美食、热情的居民，没有任何浮夸。",
+    "resort_name": "私人度假村",
+    "resort_tagline": "您专属的天堂一角",
+    "resort_desc": "一座岛屿，一个度假村。水上别墅、日出瑜伽，以及一位记住您姓名的管家。"
+  },
+  "fp": {
+    "honeymoon_name": "蜜月之旅",
+    "honeymoon_tagline": "开启改变一切的新篇章。",
+    "honeymoon_badge": "最受欢迎",
+    "adventure_name": "蔚蓝冒险",
+    "adventure_tagline": "鲸鲨不会自己找上门。",
+    "adventure_badge": "潜水者首选",
+    "family_name": "家庭天堂",
+    "family_tagline": "一次让全家难忘的旅行。",
+    "family_badge": "亲子友好",
+    "surf_name": "冲浪与灵魂",
+    "surf_tagline": "只有你、冲浪板和完美的左手浪。",
+    "surf_badge": "独行旅行"
+  },
+  "hl": {
+    "nights": "晚",
+    "night": "晚",
+    "privateResort": "私人度假村",
+    "localIslands": "本地岛屿",
+    "localIsland": "本地岛屿",
+    "atolls": "个环礁",
+    "atoll": "个环礁",
+    "guests": "位旅客",
+    "solo": "独行"
+  },
+  "s2": {
+    "heading": "您打算什么时候出发？",
+    "subMobile": "旱季（11月—4月）：晴朗平静 · 雨季（5月—10月）：野性十足，魔鬼鱼，人少",
+    "subDesktop": "旱季（11月—4月）= 平静的海洋与灿烂的阳光。雨季（5月—10月）= 人少、魔鬼鱼与神秘魅力。",
+    "travelMonth": "出发月份",
+    "dry": "旱季晴朗",
+    "wet": "雨季野趣",
+    "nights": "晚",
+    "travelers": "旅客人数",
+    "minNights": "最少 2 晚",
+    "maxNights": "最多 21 晚"
+  },
+  "s3": {
+    "heading": "您想在哪里住宿？",
+    "subMobile": "为您的 {{nights}} 晚行程选择住宿",
+    "subDesktop": "浏览并选择您的住所——每一处都是不同的体验，跨岛自由组合。",
+    "tooMany": "您已选择 {{selected}} 处住宿，但只有 {{nights}} 晚。请取消一个，或返回增加夜晚数。"
+  },
+  "s4": {
+    "heading": "每个岛屿停留多久？",
+    "splitEvenly": "平均分配",
+    "subMobile": "{{nights}} 晚 · {{count}} 个{{islandWord}} · 拖动调整",
+    "subDesktop": "快速移动或悠然驻留 —— {{nights}} 晚，{{count}} 个{{islandWord}}，由您决定。",
+    "island": "岛屿",
+    "islands": "岛屿",
+    "allocated": "已分配夜晚",
+    "transfer": "转运"
+  },
+  "s5": {
+    "heading": "您想收集哪些美好回忆？",
+    "sub": "日出潜水、黄昏魔鬼鱼、沙滩私人晚餐 —— 以下是",
+    "days": "第",
+    "night": "晚",
+    "nights": "晚",
+    "maxActivity": "最多 {{n}} 个活动",
+    "maxActivities": "最多 {{n}} 个活动",
+    "outOfSeason": "{{n}} 项体验在 {{month}} 不当季",
+    "season": "季节：",
+    "shareTitle": "您的旅程已就绪",
+    "shareBtn": "分享我的行程",
+    "makeItHappen": "立即预订",
+    "inclGST": "含税"
+  },
+  "sidebar": {
+    "title": "您的专属旅程 ✦",
+    "empty": "选择住宿风格，开始构建您的行程。",
+    "itinerary": "行程安排",
+    "stay": "住宿",
+    "transfers": "转运",
+    "experiences": "体验",
+    "gst": "GST (16%)",
+    "total": "含税总价",
+    "disclaimer": "不含国际机票。最终报价将在24小时内确认。",
+    "makeItHappen": "立即预订"
+  },
+  "bar": {
+    "estTotal": "预估总价 · 含税",
+    "keepGoing": "继续",
+    "back": "返回",
+    "makeItHappen": "立即预订"
+  },
+  "modal": {
+    "badge": "即将完成 ✦",
+    "heading": "让梦想成真",
+    "successHeading": "您的旅程即将开始！",
+    "successBody": "我们将确认您的行程，并在24小时内发送最终报价。请期待——这将是一次难忘的旅行！",
+    "reference": "参考编号：",
+    "referenceNote": "请保留此编号以便日后查询。",
+    "backToTrip": "返回我的行程",
+    "inclGST": "含16% GST",
+    "firstName": "名字",
+    "lastName": "姓氏",
+    "email": "电子邮件",
+    "phone": "电话 / WhatsApp",
+    "specialRequests": "特别要求",
+    "optional": "（可选）",
+    "submitBtn": "发送预订申请",
+    "noPayment": "现在无需付款。我们将确认可用性并在24小时内发送最终报价。"
+  },
+  "errors": {
+    "pickStyle": "请选择住宿风格以继续。",
+    "pickMonth": "请选择出行月份以继续。",
+    "pickIsland": "请至少选择一个岛屿。",
+    "tooManyIslands": "已选 {{selected}} 个岛屿，但只有 {{nights}} 晚 —— 请取消一个或增加夜晚数。",
+    "assignNights": "请分配全部 {{nights}} 晚 —— 还有 {{diff}} 晚未安排。"
+  }
+}
